@@ -1,53 +1,129 @@
-import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { Link } from "expo-router";
+import { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
-import { color, space } from "@/theme";
+import { useSlotPlayer } from "@/hooks/useSlotPlayer";
+import { useDuration } from "@/hooks/useDuration";
+import { Stage } from "@/components/playback/Stage";
+import { HeaderBar } from "@/components/playback/HeaderBar";
+import { TransportBar, type TrackRow } from "@/components/playback/TransportBar";
+import type { Slot } from "@/data/types";
+import { color } from "@/theme";
+
+function formatTime(duration: number, inFrac: number, outFrac: number, posFrac: number) {
+  const d = duration || 0;
+  const cur = Math.max(0, (posFrac - inFrac) * d);
+  const len = Math.max(0, (outFrac - inFrac) * d);
+  return `${cur.toFixed(2)} / ${len.toFixed(2)}s`;
+}
 
 export default function PlaybackScreen() {
-  const { clips, loading } = useClipLibrary();
-  const { clips: slots, loadClip } = usePlaybackSession();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { clips: libraryClips, loading } = useClipLibrary();
+  const session = usePlaybackSession();
+
+  const [chrome, setChrome] = useState(true);
+  const [playing] = useState(false);
 
   useEffect(() => {
-    if (loading || clips.length === 0) return;
-    if (!slots.L.uri) loadClip("L", clips[0]);
-    if (!slots.R.uri) loadClip("R", clips[1] ?? clips[0]);
+    if (loading || libraryClips.length === 0) return;
+    if (!session.clips.L.uri) session.loadClip("L", libraryClips[0]);
+    if (!session.clips.R.uri) session.loadClip("R", libraryClips[1] ?? libraryClips[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, clips]);
+  }, [loading, libraryClips]);
+
+  const playerL = useSlotPlayer(session.clips.L.uri);
+  const playerR = useSlotPlayer(session.clips.R.uri);
+  const durationL = useDuration(playerL);
+  const durationR = useDuration(playerR);
+
+  const activeSlot: Slot = session.locked ? "L" : session.sel;
+  const activeClip = session.clips[activeSlot];
+
+  const trackFor = (slot: Slot, label: string): TrackRow => {
+    const c = session.clips[slot];
+    const duration = slot === "L" ? durationL : durationR;
+    return {
+      key: slot,
+      label,
+      labelColor: !session.locked && session.sel === slot ? color.accent : color.textMuted,
+      editable: !session.locked,
+      inFrac: c.in,
+      outFrac: c.out,
+      playheadFrac: c.in,
+      timeText: formatTime(duration ?? 0, c.in, c.out, c.in),
+    };
+  };
+
+  const tracks: TrackRow[] = session.locked
+    ? [{ ...trackFor("L", "Locked"), editable: false, labelColor: color.accent }]
+    : [trackFor("L", "Clip L"), trackFor("R", "Clip R")];
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Trick Comparer</Text>
-      <Text style={styles.subtitle}>
-        {loading ? "Loading library…" : `L: ${slots.L.title || "—"}  ·  R: ${slots.R.title || "—"}`}
-      </Text>
-      <View style={styles.links}>
-        <Link href="/library" style={styles.link}>
-          Library
-        </Link>
-        <Link href="/import" style={styles.link}>
-          Import + tagging
-        </Link>
-        <Link href={{ pathname: "/record", params: { slot: "L" } }} style={styles.link}>
-          Record / replace
-        </Link>
-      </View>
+    <View style={styles.screen}>
+      <Stage
+        playerL={playerL}
+        playerR={playerR}
+        clips={session.clips}
+        display={session.display}
+        top={session.top}
+        opacity={session.opacity}
+        sel={session.sel}
+        locked={session.locked}
+        onTapStage={() => setChrome((c) => !c)}
+      />
+
+      {chrome && (
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0, paddingTop: insets.top }}>
+          <HeaderBar
+            nameL={session.clips.L.title}
+            nameR={session.clips.R.title}
+            sel={session.sel}
+            locked={session.locked}
+            display={session.display}
+            onSelect={(slot) => !session.locked && session.setSel(slot)}
+            onSetDisplay={session.setDisplay}
+            onBack={() => router.push("/library")}
+            onTries={() => {}}
+          />
+        </View>
+      )}
+
+      {chrome && (
+        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingBottom: insets.bottom }}>
+          <TransportBar
+            tracks={tracks}
+            playing={playing}
+            speed={activeClip.speed}
+            speedText={`${activeClip.speed.toFixed(2).replace(/0$/, "")}×`}
+            zoom={activeClip.zoom}
+            overlayMode={session.display === "overlay"}
+            opacity={session.opacity}
+            opacityText={`${Math.round(session.opacity * 100)}%`}
+            locked={session.locked}
+            replaceLabel={`Replace ${activeSlot}`}
+            controlsEnabled={false}
+            onPlay={() => {}}
+            onStep={() => {}}
+            onSpeedChange={() => {}}
+            onZoomChange={() => {}}
+            onOpacityChange={() => {}}
+            onSwap={session.swapTop}
+            onReplace={() => router.push({ pathname: "/record", params: { slot: activeSlot } })}
+            onLock={session.toggleLock}
+          />
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: color.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space[4],
-    padding: space[6],
   },
-  title: { color: color.text, fontSize: 22, fontWeight: "600" },
-  subtitle: { color: color.textMuted, fontSize: 13, textAlign: "center" },
-  links: { flexDirection: "row", gap: space[4], marginTop: space[6] },
-  link: { color: color.accent, fontSize: 14 },
 });

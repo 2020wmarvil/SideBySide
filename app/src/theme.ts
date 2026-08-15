@@ -49,3 +49,12 @@ export const elevation = {
 export const font = {
   heading: { fontWeight: "500" as const },
 };
+
+/** rgba(hex, alpha) — mirrors the prototype's `color-mix(in srgb, X n%, transparent)`. */
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
