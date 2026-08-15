@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "rea
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { persistRecording } from "@/data/recordings";
@@ -27,6 +27,7 @@ export default function RecordScreen() {
   const { clips, addClip } = useClipLibrary();
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -36,9 +37,11 @@ export default function RecordScreen() {
   const [newClipTags, setNewClipTags] = useState<string[]>([]);
 
   const takeThumb = useThumbnail(takeUri);
+  const granted = !!permission?.granted && !!micPermission?.granted;
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
+    if (!micPermission?.granted) requestMicPermission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -107,7 +110,7 @@ export default function RecordScreen() {
     router.replace("/library");
   };
 
-  if (!permission) {
+  if (!permission || !micPermission) {
     return (
       <View style={[styles.screen, styles.centered]}>
         <ActivityIndicator color={color.accent} />
@@ -115,20 +118,25 @@ export default function RecordScreen() {
     );
   }
 
-  if (!permission.granted) {
+  if (!granted) {
+    const canAskAgain = permission.canAskAgain && micPermission.canAskAgain;
+    const handleAllow = () => {
+      if (!permission.granted) requestPermission();
+      if (!micPermission.granted) requestMicPermission();
+    };
     return (
       <View style={[styles.screen, styles.centered, { gap: space[3], paddingHorizontal: 40 }]}>
         <Ionicons name="videocam-off-outline" size={34} color={color.neutral600} />
-        <Text style={styles.promptTitle}>Camera access needed</Text>
+        <Text style={styles.promptTitle}>Camera & microphone access needed</Text>
         <Text style={styles.promptBody}>
-          {permission.canAskAgain
-            ? "Allow camera access to record a trick attempt."
-            : "Camera access was denied. Enable it in system settings to record."}
+          {canAskAgain
+            ? "Allow camera and microphone access to record a trick attempt with sound."
+            : "Camera or microphone access was denied. Enable both in system settings to record."}
         </Text>
         <View style={{ flexDirection: "row", gap: space[3] }}>
-          {permission.canAskAgain && (
-            <Pressable style={styles.primaryButton} onPress={requestPermission}>
-              <Text style={styles.primaryButtonText}>Allow camera</Text>
+          {canAskAgain && (
+            <Pressable style={styles.primaryButton} onPress={handleAllow}>
+              <Text style={styles.primaryButtonText}>Allow access</Text>
             </Pressable>
           )}
           <Pressable style={styles.secondaryButton} onPress={backOut}>
@@ -214,7 +222,7 @@ export default function RecordScreen() {
 
   return (
     <View style={styles.screen}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} mode="video" facing="back" mute />
+      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} mode="video" facing="back" />
       <View style={styles.framingGuide} pointerEvents="none" />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
