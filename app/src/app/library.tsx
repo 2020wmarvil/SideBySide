@@ -92,7 +92,7 @@ export default function LibraryScreen() {
           <View style={styles.sidebar}>
             <View style={styles.brand}>
               <Ionicons name="disc-outline" size={16} color={color.accent} />
-              <Text style={styles.brandText}>Comparer</Text>
+              <Text style={styles.brandText}>Side By Side</Text>
             </View>
 
             {hasClips && (
@@ -133,7 +133,7 @@ export default function LibraryScreen() {
           <View style={styles.narrowHeader}>
             <View style={styles.brand}>
               <Ionicons name="disc-outline" size={16} color={color.accent} />
-              <Text style={styles.brandText}>Comparer</Text>
+              <Text style={styles.brandText}>Side By Side</Text>
             </View>
             <View style={styles.narrowHeaderActions}>
               <Pressable style={styles.narrowIconButton} onPress={() => router.push("/import")}>

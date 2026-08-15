@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Trick Comparer",
-    "slug": "trick-comparer",
+    "name": "Side By Side",
+    "slug": "side-by-side",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "trickcomparer",
+    "scheme": "sidebyside",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
