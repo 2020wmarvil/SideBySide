@@ -22,7 +22,13 @@ export function useSlotPlayer(uri: string | null) {
       // already loaded as the player's initial source — no-op.
       if (uri === initialUri.current) return;
     }
-    if (uri) player.replaceAsync(uri);
+    if (uri) {
+      // expo-video's web `replace`/`replaceAsync` starts playback as a
+      // side effect (its native implementations don't) — pause right
+      // after so every platform ends up paused-until-play, matching what
+      // this app actually wants on load/replace.
+      player.replaceAsync(uri).then(() => player.pause());
+    }
   }, [uri, player]);
 
   return player;

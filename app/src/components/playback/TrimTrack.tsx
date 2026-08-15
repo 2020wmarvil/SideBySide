@@ -26,7 +26,7 @@ export function TrimTrack({ label, labelColor, editable, inFrac, outFrac, playhe
         />
         {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -5 }]} />}
         {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -4 }]} />}
-        <View style={[styles.playhead, { left: pct(playheadFrac) }]} pointerEvents="none" />
+        <View style={[styles.playhead, { left: pct(playheadFrac) }]} />
       </View>
       <Text style={styles.time} numberOfLines={1}>
         {timeText}
@@ -78,6 +78,7 @@ const styles = StyleSheet.create({
     width: 2,
     marginLeft: -1,
     backgroundColor: color.neutral100,
+    pointerEvents: "none",
   },
   time: {
     width: 78,

@@ -66,7 +66,7 @@ export function Stage({ playerL, playerR, clips, display, top, opacity, sel, loc
         </View>
       ))}
 
-      {side && <View style={styles.divider} pointerEvents="none" />}
+      {side && <View style={styles.divider} />}
 
       <Pressable style={styles.tapLayer} onPress={onTapStage} />
     </View>
@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 1,
     backgroundColor: withAlpha(color.text, 0.22),
+    pointerEvents: "none",
   },
   tapLayer: {
     position: "absolute",

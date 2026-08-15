@@ -4,11 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
-import { useSlotPlayer } from "@/hooks/useSlotPlayer";
-import { useDuration } from "@/hooks/useDuration";
+import { usePlaybackEngine } from "@/hooks/usePlaybackEngine";
 import { Stage } from "@/components/playback/Stage";
 import { HeaderBar } from "@/components/playback/HeaderBar";
 import { TransportBar, type TrackRow } from "@/components/playback/TransportBar";
+import { Toast } from "@/components/shared/Toast";
 import type { Slot } from "@/data/types";
 import { color } from "@/theme";
 
@@ -26,7 +26,6 @@ export default function PlaybackScreen() {
   const session = usePlaybackSession();
 
   const [chrome, setChrome] = useState(true);
-  const [playing] = useState(false);
 
   useEffect(() => {
     if (loading || libraryClips.length === 0) return;
@@ -35,10 +34,21 @@ export default function PlaybackScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, libraryClips]);
 
-  const playerL = useSlotPlayer(session.clips.L.uri);
-  const playerR = useSlotPlayer(session.clips.R.uri);
-  const durationL = useDuration(playerL);
-  const durationR = useDuration(playerR);
+  const {
+    playerL,
+    playerR,
+    durationL,
+    durationR,
+    playing,
+    pos,
+    toast,
+    togglePlay,
+    step,
+    setSpeed,
+    setZoom,
+    handleLock,
+    windowLen,
+  } = usePlaybackEngine(session);
 
   const activeSlot: Slot = session.locked ? "L" : session.sel;
   const activeClip = session.clips[activeSlot];
@@ -53,14 +63,28 @@ export default function PlaybackScreen() {
       editable: !session.locked,
       inFrac: c.in,
       outFrac: c.out,
-      playheadFrac: c.in,
-      timeText: formatTime(duration ?? 0, c.in, c.out, c.in),
+      playheadFrac: pos[slot],
+      timeText: formatTime(duration, c.in, c.out, pos[slot]),
     };
   };
 
-  const tracks: TrackRow[] = session.locked
-    ? [{ ...trackFor("L", "Locked"), editable: false, labelColor: color.accent }]
-    : [trackFor("L", "Clip L"), trackFor("R", "Clip R")];
+  let tracks: TrackRow[];
+  if (session.locked) {
+    // the merged track loops at the shorter of the two windows, not clip
+    // L's own (out - in) — show that length, not L's raw window.
+    const lockedLen = Math.min(windowLen("L"), windowLen("R"));
+    const cur = Math.max(0, (pos.L - session.clips.L.in) * durationL);
+    tracks = [
+      {
+        ...trackFor("L", "Locked"),
+        editable: false,
+        labelColor: color.accent,
+        timeText: `${cur.toFixed(2)} / ${lockedLen.toFixed(2)}s`,
+      },
+    ];
+  } else {
+    tracks = [trackFor("L", "Clip L"), trackFor("R", "Clip R")];
+  }
 
   return (
     <View style={styles.screen}>
@@ -105,18 +129,20 @@ export default function PlaybackScreen() {
             opacityText={`${Math.round(session.opacity * 100)}%`}
             locked={session.locked}
             replaceLabel={`Replace ${activeSlot}`}
-            controlsEnabled={false}
-            onPlay={() => {}}
-            onStep={() => {}}
-            onSpeedChange={() => {}}
-            onZoomChange={() => {}}
-            onOpacityChange={() => {}}
+            controlsEnabled
+            onPlay={togglePlay}
+            onStep={step}
+            onSpeedChange={setSpeed}
+            onZoomChange={setZoom}
+            onOpacityChange={session.setOpacity}
             onSwap={session.swapTop}
             onReplace={() => router.push({ pathname: "/record", params: { slot: activeSlot } })}
-            onLock={session.toggleLock}
+            onLock={handleLock}
           />
         </View>
       )}
+
+      <Toast message={toast} bottom={chrome ? 132 : 24} />
     </View>
   );
 }
