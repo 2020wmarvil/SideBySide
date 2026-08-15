@@ -5,11 +5,13 @@ import { useRouter } from "expo-router";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { usePlaybackEngine } from "@/hooks/usePlaybackEngine";
+import { useLandscapeLock } from "@/hooks/useLandscapeLock";
 import { Stage } from "@/components/playback/Stage";
 import { HeaderBar } from "@/components/playback/HeaderBar";
 import { TransportBar, type TrackRow } from "@/components/playback/TransportBar";
+import { TriesPanel } from "@/components/playback/TriesPanel";
 import { Toast } from "@/components/shared/Toast";
-import type { Slot } from "@/data/types";
+import type { Clip, Slot } from "@/data/types";
 import { color } from "@/theme";
 
 function formatTime(duration: number, inFrac: number, outFrac: number, posFrac: number) {
@@ -20,12 +22,15 @@ function formatTime(duration: number, inFrac: number, outFrac: number, posFrac: 
 }
 
 export default function PlaybackScreen() {
+  useLandscapeLock();
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clips: libraryClips, loading } = useClipLibrary();
   const session = usePlaybackSession();
 
   const [chrome, setChrome] = useState(true);
+  const [triesOpen, setTriesOpen] = useState(false);
 
   useEffect(() => {
     if (loading || libraryClips.length === 0) return;
@@ -54,6 +59,14 @@ export default function PlaybackScreen() {
 
   const activeSlot: Slot = session.locked ? "L" : session.sel;
   const activeClip = session.clips[activeSlot];
+
+  const activeLibraryClip: Clip | null =
+    libraryClips.find((c) => c.id === session.clips[activeSlot].clipId) ?? null;
+  const tries: Clip[] = activeLibraryClip
+    ? libraryClips
+        .filter((c) => c.id !== activeLibraryClip.id && c.tags.some((t) => activeLibraryClip.tags.includes(t)))
+        .sort((a, b) => b.createdAt - a.createdAt)
+    : [];
 
   const handlePan = (dx: number, dy: number) => {
     session.activeSlots.forEach((s) => {
@@ -131,7 +144,10 @@ export default function PlaybackScreen() {
         opacity={session.opacity}
         sel={session.sel}
         locked={session.locked}
-        onTapStage={() => setChrome((c) => !c)}
+        onTapStage={() => {
+          setChrome((c) => !c);
+          setTriesOpen(false);
+        }}
         onPan={handlePan}
         onPinchBegin={handlePinchBegin}
         onPinchChange={handlePinchChange}
@@ -148,8 +164,20 @@ export default function PlaybackScreen() {
             onSelect={(slot) => !session.locked && session.setSel(slot)}
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
-            onTries={() => {}}
+            onTries={() => setTriesOpen((v) => !v)}
           />
+          {triesOpen && (
+            <TriesPanel
+              activeClip={activeLibraryClip}
+              tries={tries}
+              targetLabel={activeSlot === "L" ? "left slot" : "right slot"}
+              onSelect={(clip) => {
+                session.loadClip(activeSlot, clip, { keepFraming: true });
+                setTriesOpen(false);
+              }}
+              onClose={() => setTriesOpen(false)}
+            />
+          )}
         </View>
       )}
 

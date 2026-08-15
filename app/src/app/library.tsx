@@ -4,9 +4,11 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,9 +22,14 @@ import { TagChip } from "@/components/library/TagChip";
 import type { Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
+// Below this width (portrait phones) the persistent sidebar doesn't fit —
+// filters collapse to a stack of full-width rows above the grid instead.
+const WIDE_LAYOUT_MIN_WIDTH = 500;
+
 export default function LibraryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { clips, loading } = useClipLibrary();
   const session = usePlaybackSession();
 
@@ -30,6 +37,7 @@ export default function LibraryScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [pickId, setPickId] = useState<string | null>(null);
 
+  const isWide = width >= WIDE_LAYOUT_MIN_WIDTH;
   const hasClips = clips.length > 0;
   const visible = filterClips(clips, search, tags);
   const tagList = allTags(clips);
@@ -56,67 +64,111 @@ export default function LibraryScreen() {
     );
   }
 
+  const tagChips = tagList.map((t) => (
+    <TagChip key={t} label={t} active={tags.includes(t)} onPress={() => toggleTag(t)} />
+  ));
+
+  const grid = !hasClips ? (
+    <EmptyState onImport={() => router.push("/import")} onRecord={() => router.push("/record")} />
+  ) : visible.length === 0 ? (
+    <View style={[styles.centered, { flex: 1 }]}>
+      <Text style={styles.noMatchesText}>No clips match this search.</Text>
+    </View>
+  ) : (
+    <FlatList
+      data={visible}
+      numColumns={3}
+      keyExtractor={(c) => c.id}
+      columnWrapperStyle={styles.gridRow}
+      contentContainerStyle={styles.gridContent}
+      renderItem={({ item }) => <ClipCard clip={item} onPress={() => setPickId(item.id)} />}
+    />
+  );
+
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.sidebar}>
-        <View style={styles.brand}>
-          <Ionicons name="disc-outline" size={16} color={color.accent} />
-          <Text style={styles.brandText}>Comparer</Text>
-        </View>
+    <View style={[styles.screen, { paddingTop: insets.top }, isWide && styles.screenWide]}>
+      {isWide ? (
+        <>
+          <View style={styles.sidebar}>
+            <View style={styles.brand}>
+              <Ionicons name="disc-outline" size={16} color={color.accent} />
+              <Text style={styles.brandText}>Comparer</Text>
+            </View>
 
-        {hasClips && (
-          <TextInput
-            style={styles.search}
-            placeholder="Search tags"
-            placeholderTextColor={color.textFaint}
-            value={search}
-            onChangeText={setSearch}
-          />
-        )}
+            {hasClips && (
+              <TextInput
+                style={styles.search}
+                placeholder="Search tags"
+                placeholderTextColor={color.textFaint}
+                value={search}
+                onChangeText={setSearch}
+              />
+            )}
 
-        {hasClips && <Text style={styles.tagsLabel}>Tags</Text>}
+            {hasClips && <Text style={styles.tagsLabel}>Tags</Text>}
+            <View style={styles.tagCloud}>{tagChips}</View>
 
-        <View style={styles.tagCloud}>
-          {tagList.map((t) => (
-            <TagChip key={t} label={t} active={tags.includes(t)} onPress={() => toggleTag(t)} />
-          ))}
-        </View>
-
-        <Pressable style={styles.importButton} onPress={() => router.push("/import")}>
-          <Ionicons name="add" size={14} color={color.accent} />
-          <Text style={styles.importButtonText}>Import clip</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.main}>
-        <View style={styles.mainHeader}>
-          <Text style={styles.libTitleText}>{libTitle}</Text>
-          <Text style={styles.libCount}>
-            {visible.length} clip{visible.length === 1 ? "" : "s"}
-          </Text>
-          <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
-            <Ionicons name="videocam-outline" size={14} color={color.text} />
-            <Text style={styles.recordButtonText}>Record</Text>
-          </Pressable>
-        </View>
-
-        {!hasClips ? (
-          <EmptyState onImport={() => router.push("/import")} onRecord={() => router.push("/record")} />
-        ) : visible.length === 0 ? (
-          <View style={[styles.centered, { flex: 1 }]}>
-            <Text style={styles.noMatchesText}>No clips match this search.</Text>
+            <Pressable style={styles.importButton} onPress={() => router.push("/import")}>
+              <Ionicons name="add" size={14} color={color.accent} />
+              <Text style={styles.importButtonText}>Import clip</Text>
+            </Pressable>
           </View>
-        ) : (
-          <FlatList
-            data={visible}
-            numColumns={3}
-            keyExtractor={(c) => c.id}
-            columnWrapperStyle={styles.gridRow}
-            contentContainerStyle={styles.gridContent}
-            renderItem={({ item }) => <ClipCard clip={item} onPress={() => setPickId(item.id)} />}
-          />
-        )}
-      </View>
+
+          <View style={styles.main}>
+            <View style={styles.mainHeader}>
+              <Text style={styles.libTitleText}>{libTitle}</Text>
+              <Text style={styles.libCount}>
+                {visible.length} clip{visible.length === 1 ? "" : "s"}
+              </Text>
+              <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
+                <Ionicons name="videocam-outline" size={14} color={color.text} />
+                <Text style={styles.recordButtonText}>Record</Text>
+              </Pressable>
+            </View>
+            {grid}
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={styles.narrowHeader}>
+            <View style={styles.brand}>
+              <Ionicons name="disc-outline" size={16} color={color.accent} />
+              <Text style={styles.brandText}>Comparer</Text>
+            </View>
+            <View style={styles.narrowHeaderActions}>
+              <Pressable style={styles.narrowIconButton} onPress={() => router.push("/import")}>
+                <Ionicons name="add" size={16} color={color.accent} />
+              </Pressable>
+              <Pressable style={styles.narrowIconButton} onPress={() => router.push("/record")}>
+                <Ionicons name="videocam-outline" size={16} color={color.text} />
+              </Pressable>
+            </View>
+          </View>
+
+          {hasClips && (
+            <View style={styles.narrowFilters}>
+              <TextInput
+                style={styles.search}
+                placeholder="Search tags"
+                placeholderTextColor={color.textFaint}
+                value={search}
+                onChangeText={setSearch}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagRowNarrow}>
+                {tagChips}
+              </ScrollView>
+            </View>
+          )}
+
+          <View style={styles.narrowMainHeader}>
+            <Text style={styles.libTitleText}>{libTitle}</Text>
+            <Text style={styles.libCount}>
+              {visible.length} clip{visible.length === 1 ? "" : "s"}
+            </Text>
+          </View>
+          <View style={styles.main}>{grid}</View>
+        </>
+      )}
 
       <Modal visible={!!pickedClip} transparent animationType="fade" onRequestClose={() => setPickId(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPickId(null)}>
@@ -170,7 +222,8 @@ function EmptyState({ onImport, onRecord }: { onImport: () => void; onRecord: ()
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, flexDirection: "row", backgroundColor: color.bg },
+  screen: { flex: 1, backgroundColor: color.bg },
+  screenWide: { flexDirection: "row" },
   centered: { alignItems: "center", justifyContent: "center" },
   sidebar: {
     width: 210,
@@ -181,6 +234,33 @@ const styles = StyleSheet.create({
   },
   brand: { flexDirection: "row", alignItems: "center", gap: 6 },
   brandText: { fontWeight: "500", fontSize: 15, color: color.text },
+  narrowHeader: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  narrowHeaderActions: { marginLeft: "auto", flexDirection: "row", gap: 8 },
+  narrowIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.divider,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  narrowFilters: { paddingHorizontal: 14, gap: 8, paddingBottom: 4 },
+  tagRowNarrow: { gap: 4, paddingVertical: 2 },
+  narrowMainHeader: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 6,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: space[3],
+  },
   search: {
     minHeight: 30,
     paddingHorizontal: 10,

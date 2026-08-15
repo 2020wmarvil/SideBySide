@@ -2,18 +2,8 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Clip } from "@/data/types";
 import { useThumbnail } from "@/hooks/useThumbnail";
+import { formatDate, formatDuration } from "@/lib/format";
 import { color, radius, elevation, withAlpha } from "@/theme";
-
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function formatDuration(sec?: number): string | null {
-  if (!sec) return null;
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 export function ClipCard({ clip, onPress }: { clip: Clip; onPress: () => void }) {
   const thumbUri = useThumbnail(clip.uri);
