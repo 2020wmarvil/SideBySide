@@ -38,8 +38,7 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to record trick attempts.",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record audio with your trick attempts.",
-          "recordAudioAndroid": true
+          "recordAudioAndroid": false
         }
       ],
       [

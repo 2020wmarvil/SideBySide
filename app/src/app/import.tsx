@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,7 +7,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { useThumbnail } from "@/hooks/useThumbnail";
-import { color, radius, space, withAlpha } from "@/theme";
+import { TagEditor } from "@/components/shared/TagEditor";
+import { color, radius, space } from "@/theme";
 
 function formatSize(bytes?: number): string {
   if (!bytes) return "";
@@ -35,7 +28,6 @@ export default function ImportScreen() {
 
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [picking, setPicking] = useState(false);
-  const [tagInput, setTagInput] = useState("");
   const [importTags, setImportTags] = useState<string[]>([]);
 
   const thumbUri = useThumbnail(asset?.uri ?? null);
@@ -60,22 +52,6 @@ export default function ImportScreen() {
     const picked = result.canceled ? null : (result.assets?.[0] ?? null);
     if (picked) setAsset(picked);
   };
-
-  const addTag = (raw: string) => {
-    const n = raw.trim().toLowerCase();
-    if (!n) return;
-    setImportTags((prev) => (prev.includes(n) ? prev : [...prev, n]));
-    setTagInput("");
-  };
-  const removeTag = (t: string) => setImportTags((prev) => prev.filter((x) => x !== t));
-
-  const ti = tagInput.trim().toLowerCase();
-  const counts = tagCounts(clips);
-  const suggestions = ti
-    ? allTags(clips)
-        .filter((t) => t.includes(ti) && !importTags.includes(t))
-        .slice(0, 4)
-    : [];
 
   const handleSave = () => {
     if (!asset) return;
@@ -142,39 +118,7 @@ export default function ImportScreen() {
         </View>
 
         <View style={styles.formCol}>
-          <View style={styles.field}>
-            <Text style={styles.label}>Tags</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Type a tag, e.g. backflip"
-              placeholderTextColor={color.textFaint}
-              value={tagInput}
-              onChangeText={setTagInput}
-              onSubmitEditing={() => addTag(tagInput)}
-              returnKeyType="done"
-            />
-          </View>
-
-          {suggestions.length > 0 && (
-            <View style={styles.suggestions}>
-              {suggestions.map((t) => (
-                <Pressable key={t} style={styles.suggestionRow} onPress={() => addTag(t)}>
-                  <Ionicons name="pricetag-outline" size={13} color={color.accent} />
-                  <Text style={styles.suggestionText}>{t}</Text>
-                  <Text style={styles.suggestionCount}>{counts[t]} clips</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.tagRow}>
-            {importTags.map((t) => (
-              <Pressable key={t} style={styles.tagChip} onPress={() => removeTag(t)}>
-                <Text style={styles.tagChipText}>{t}</Text>
-                <Ionicons name="close" size={10} color={color.accent100} />
-              </Pressable>
-            ))}
-          </View>
+          <TagEditor tags={importTags} onChange={setImportTags} allTags={allTags(clips)} tagCounts={tagCounts(clips)} />
 
           <View style={styles.footer}>
             <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
@@ -221,43 +165,6 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 12, color: color.text },
   fileMeta: { fontSize: 11, color: color.textFaint },
   formCol: { flex: 1, minWidth: 0, gap: space[2] },
-  field: { gap: 5 },
-  label: { fontSize: 12, color: withAlpha(color.text, 0.7) },
-  input: {
-    minHeight: 36,
-    paddingHorizontal: 10,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.divider,
-    backgroundColor: color.surface,
-    color: color.text,
-    fontSize: 13,
-  },
-  suggestions: {
-    borderRadius: radius.md,
-    backgroundColor: color.surface,
-    overflow: "hidden",
-  },
-  suggestionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  suggestionText: { fontSize: 12, color: color.text },
-  suggestionCount: { marginLeft: "auto", fontSize: 10, color: color.textFaint },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, minHeight: 30 },
-  tagChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: color.accent800,
-  },
-  tagChipText: { fontSize: 11, color: color.accent100 },
   footer: { marginTop: "auto", flexDirection: "row", alignItems: "center", gap: space[3] },
   footerHint: { flex: 1, fontSize: 11, color: color.textFaint },
   cancelButton: {
