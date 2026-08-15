@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="./nocturne.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<style>
+  body { margin: 0; padding: 40px; background: var(--color-bg); }
+  input[type="range"] { accent-color: var(--color-accent); height: 16px; }
+  .om-frame { box-shadow: 0 0 0 1px var(--color-neutral-700), 0 24px 60px rgba(0,0,0,.6); }
+  .om-scroll::-webkit-scrollbar { width: 6px; }
+  .om-scroll::-webkit-scrollbar-thumb { background: var(--color-neutral-700); border-radius: 3px; }
+  @keyframes om-pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+</style>
+</helmet>
+
+<section style="max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent)">Turn 1 · Trick Video Comparer</div>
+    <h2 style="margin:0">Landscape playback, minimal chrome</h2>
+    <p style="margin:0;max-width:66ch;font-size:14px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Working prototype below — real clips, real trim windows, speed, zoom/pan, frame stepping, lock, overlay. Three open decisions follow it as <a href="#1b">1b</a>, <a href="#1c">1c</a>, <a href="#1d">1d</a>.</p>
+  </div>
+
+  <div id="1a" style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="tag tag-accent">1a</span>
+      <span style="font-size:13px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">Prototype — tap the video to hide or reveal controls</span>
+    </div>
+
+    <div class="om-frame" style="width:960px;height:456px;padding:12px;border-radius:26px;background:#0b0c14">
+      <div style="position:relative;width:936px;height:432px;border-radius:16px;overflow:hidden;background:var(--color-neutral-900)">
+
+        <sc-if value="{{ isPlay }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;inset:0;background:#000">
+            <div style="position:absolute;top:0;bottom:0;overflow:hidden;transition:left .3s,width .3s,opacity .3s;{{ paneLBox }}">
+              <video ref="{{ refL }}" src="media/reference.mp4" muted playsinline preload="auto" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%;transform:{{ trL }}"></video>
+              <div style="position:absolute;left:8px;top:8px;font-size:10px;letter-spacing:.1em;padding:2px 6px;border-radius:4px;background:rgba(11,12,20,.65);color:var(--color-neutral-300)">L</div>
+            </div>
+            <div style="position:absolute;top:0;bottom:0;overflow:hidden;transition:left .3s,width .3s,opacity .3s;{{ paneRBox }}">
+              <video ref="{{ refR }}" src="media/training.mp4" muted playsinline preload="auto" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%;transform:{{ trR }}"></video>
+              <div style="position:absolute;left:8px;top:8px;font-size:10px;letter-spacing:.1em;padding:2px 6px;border-radius:4px;background:rgba(11,12,20,.65);color:var(--color-neutral-300)">R</div>
+            </div>
+            <sc-if value="{{ sideBySide }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:color-mix(in srgb, var(--color-text) 22%, transparent)"></div>
+            </sc-if>
+            <div style="position:absolute;inset:0;pointer-events:none;{{ selBox }}"></div>
+            <div onPointerDown="{{ onStageDown }}" style="position:absolute;inset:0;z-index:3;cursor:{{ stageCursor }}"></div>
+          </div>
+
+          <sc-if value="{{ chrome }}" hint-placeholder-val="{{ true }}">
+            <div style="position:absolute;left:0;right:0;top:0;z-index:6;padding:9px 12px;display:flex;align-items:center;gap:8px;background:linear-gradient(rgba(11,12,20,.88),rgba(11,12,20,0))">
+              <button class="btn btn-icon btn-secondary" data-act="go" data-v="library" onClick="{{ onAction }}" style="width:30px;height:30px;border-color:color-mix(in srgb, var(--color-text) 22%, transparent)"><i class="ph ph-arrow-left" style="font-size:15px"></i></button>
+              <button class="tag {{ chipL }}" data-act="sel" data-v="L" onClick="{{ onAction }}" style="cursor:pointer;max-width:210px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ nameL }}</button>
+              <button class="tag {{ chipR }}" data-act="sel" data-v="R" onClick="{{ onAction }}" style="cursor:pointer;max-width:210px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ nameR }}</button>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+                <div style="display:inline-flex;border:1px solid color-mix(in srgb, var(--color-text) 22%, transparent);border-radius:var(--radius-md);overflow:hidden">
+                  <button data-act="disp" data-v="side" onClick="{{ onAction }}" style="border:0;background:transparent;font:inherit;font-size:12px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;{{ segSide }}"><i class="ph ph-columns" style="font-size:14px"></i>Side</button>
+                  <button data-act="disp" data-v="overlay" onClick="{{ onAction }}" style="border:0;border-left:1px solid color-mix(in srgb, var(--color-text) 22%, transparent);background:transparent;font:inherit;font-size:12px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;{{ segOver }}"><i class="ph ph-stack-simple" style="font-size:14px"></i>Overlay</button>
+                </div>
+                <button class="btn btn-secondary" data-act="tries" onClick="{{ onAction }}" style="border-color:color-mix(in srgb, var(--color-text) 22%, transparent);font-size:12px;padding:5px 9px"><i class="ph ph-clock-counter-clockwise" style="font-size:14px"></i>Tries</button>
+              </div>
+            </div>
+
+            <div style="position:absolute;left:0;right:0;bottom:0;z-index:6;padding:14px 12px 12px;display:flex;flex-direction:column;gap:9px;background:linear-gradient(rgba(11,12,20,0),rgba(11,12,20,.9) 26%,rgba(11,12,20,.97))">
+              <sc-for list="{{ tracks }}" as="t" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <span style="width:70px;flex:none;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ t.labelColor }}">{{ t.label }}</span>
+                  <div data-slot="{{ t.slot }}" onPointerDown="{{ onTrackDown }}" style="position:relative;flex:1;height:24px;border-radius:5px;background:color-mix(in srgb, var(--color-text) 9%, transparent);cursor:pointer;touch-action:none">
+                    <div style="position:absolute;top:0;bottom:0;background:color-mix(in srgb, var(--color-accent) 22%, transparent);border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);{{ t.winBox }}"></div>
+                    <sc-if value="{{ t.editable }}" hint-placeholder-val="{{ true }}">
+                      <div data-kind="in" data-slot="{{ t.slot }}" style="position:absolute;top:-3px;bottom:-3px;width:9px;margin-left:-5px;border-radius:3px;background:var(--color-accent);cursor:ew-resize;{{ t.inBox }}"></div>
+                    </sc-if>
+                    <sc-if value="{{ t.editable }}" hint-placeholder-val="{{ true }}">
+                      <div data-kind="out" data-slot="{{ t.slot }}" style="position:absolute;top:-3px;bottom:-3px;width:9px;margin-left:-4px;border-radius:3px;background:var(--color-accent);cursor:ew-resize;{{ t.outBox }}"></div>
+                    </sc-if>
+                    <div style="position:absolute;top:-4px;bottom:-4px;width:2px;pointer-events:none;background:var(--color-neutral-100);box-shadow:0 0 6px rgba(0,0,0,.8);{{ t.playBox }}"></div>
+                  </div>
+                  <span style="width:78px;flex:none;text-align:right;white-space:nowrap;font-size:10px;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ t.time }}</span>
+                </div>
+              </sc-for>
+
+              <div style="display:flex;align-items:center;gap:8px">
+                <button class="btn btn-primary btn-icon" data-act="play" onClick="{{ onAction }}" style="width:34px;height:34px"><i class="{{ playIcon }}" style="font-size:16px"></i></button>
+                <div style="display:flex;gap:3px">
+                  <button class="btn btn-secondary" data-act="step" data-v="-5" onClick="{{ onAction }}" style="font-size:11px;padding:5px 7px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)">−5</button>
+                  <button class="btn btn-secondary" data-act="step" data-v="-1" onClick="{{ onAction }}" style="font-size:11px;padding:5px 7px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)">−1</button>
+                  <button class="btn btn-secondary" data-act="step" data-v="1" onClick="{{ onAction }}" style="font-size:11px;padding:5px 7px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)">+1</button>
+                  <button class="btn btn-secondary" data-act="step" data-v="5" onClick="{{ onAction }}" style="font-size:11px;padding:5px 7px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)">+5</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;padding-left:4px">
+                  <i class="ph ph-gauge" style="font-size:14px;color:var(--color-neutral-400)"></i>
+                  <input type="range" min="0.1" max="1" step="0.05" value="{{ speed }}" data-k="speed" onInput="{{ onSlider }}" style="width:78px">
+                  <span style="width:32px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-300)">{{ speedTxt }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <i class="ph ph-magnifying-glass-plus" style="font-size:14px;color:var(--color-neutral-400)"></i>
+                  <input type="range" min="1" max="3" step="0.05" value="{{ zoom }}" data-k="zoom" onInput="{{ onSlider }}" style="width:64px">
+                </div>
+                <sc-if value="{{ overlayMode }}">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <i class="ph ph-circle-half" style="font-size:14px;color:var(--color-neutral-400)"></i>
+                    <input type="range" min="0" max="1" step="0.02" value="{{ opacity }}" data-k="opacity" onInput="{{ onSlider }}" style="width:70px">
+                    <span style="width:32px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-300)">{{ opacityTxt }}</span>
+                    <button class="btn btn-secondary" data-act="swap" onClick="{{ onAction }}" style="font-size:11px;padding:5px 8px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)"><i class="ph ph-swap" style="font-size:14px"></i>Swap</button>
+                  </div>
+                </sc-if>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+                  <button class="btn btn-secondary" data-act="replace" onClick="{{ onAction }}" style="font-size:11px;padding:5px 9px;border-color:color-mix(in srgb, var(--color-text) 20%, transparent)"><i class="ph ph-record" style="font-size:14px"></i>{{ replaceLabel }}</button>
+                  <button class="btn {{ lockCls }}" data-act="lock" onClick="{{ onAction }}" style="font-size:12px;padding:6px 10px"><i class="{{ lockIcon }}" style="font-size:14px"></i>{{ lockLabel }}</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ triesOpen }}">
+            <div style="position:absolute;right:12px;top:48px;z-index:7;width:246px;padding:10px;border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-lg)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent)">backflip · ethan turner</span>
+                <button class="btn btn-ghost" data-act="tries" onClick="{{ onAction }}" style="margin-left:auto;padding:0 2px"><i class="ph ph-x" style="font-size:13px"></i></button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <sc-for list="{{ tries }}" as="t" hint-placeholder-count="4">
+                  <button data-act="loadTry" data-v="{{ t.name }}" onClick="{{ onAction }}" style="display:flex;align-items:center;gap:8px;padding:6px;border:0;border-radius:var(--radius-sm);background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;text-align:left" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)">
+                    <video src="{{ t.src }}" muted playsinline preload="metadata" style="width:44px;height:26px;object-fit:cover;border-radius:3px;flex:none"></video>
+                    <span style="flex:1">{{ t.date }}</span>
+                    <span class="tag {{ t.cls }}" style="font-size:9px;padding:1px 6px">{{ t.badge }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="margin-top:6px;font-size:10px;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Loads into the {{ triesTarget }} slot, keeping its pan &amp; zoom.</div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isLibrary }}">
+          <div style="position:absolute;inset:0;display:flex">
+            <div style="width:210px;flex:none;padding:12px;display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--color-divider)">
+              <div style="display:flex;align-items:center;gap:6px">
+                <i class="ph ph-vinyl-record" style="font-size:16px;color:var(--color-accent)"></i>
+                <span style="font-family:var(--font-heading);font-weight:500;font-size:15px">Comparer</span>
+              </div>
+              <sc-if value="{{ hasClips }}" hint-placeholder-val="{{ true }}">
+                <input class="input" placeholder="Search tags" value="{{ search }}" data-k="search" onInput="{{ onSlider }}" style="font-size:12px;min-height:30px">
+              </sc-if>
+              <sc-if value="{{ hasClips }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 50%, transparent)">Tags</div>
+              </sc-if>
+              <div class="om-scroll" style="display:flex;flex-wrap:wrap;gap:4px;overflow-y:auto">
+                <sc-for list="{{ tagList }}" as="t" hint-placeholder-count="7">
+                  <button class="tag {{ t.cls }}" data-act="tag" data-v="{{ t.name }}" onClick="{{ onAction }}" style="cursor:pointer;font:inherit;font-size:11px;padding:3px 9px">{{ t.name }}</button>
+                </sc-for>
+              </div>
+              <button class="btn btn-primary btn-block" data-act="import" onClick="{{ onAction }}" style="margin-top:auto;font-size:12px"><i class="ph ph-plus" style="font-size:14px"></i>Import clip</button>
+            </div>
+
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <div style="padding:12px 14px 8px;display:flex;align-items:baseline;gap:8px">
+                <h4 style="margin:0">{{ libTitle }}</h4>
+                <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ libCount }}</span>
+                <button class="btn btn-secondary" data-act="record" onClick="{{ onAction }}" style="margin-left:auto;font-size:12px;padding:5px 9px"><i class="ph ph-video-camera" style="font-size:14px"></i>Record</button>
+              </div>
+              <sc-if value="{{ isEmpty }}">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 40px 30px;text-align:center">
+                  <i class="ph ph-film-strip" style="font-size:34px;color:var(--color-neutral-600)"></i>
+                  <div style="font-family:var(--font-heading);font-size:17px">Nothing in the library yet</div>
+                  <p style="margin:0;max-width:44ch;font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Import a clip from your phone or record a first attempt. Tag it on the way in — that's how you'll find it later.</p>
+                  <div style="display:flex;gap:8px;margin-top:2px">
+                    <button class="btn btn-primary" data-act="import" onClick="{{ onAction }}" style="font-size:12px"><i class="ph ph-folder-open" style="font-size:14px"></i>Import from device</button>
+                    <button class="btn btn-secondary" data-act="record" onClick="{{ onAction }}" style="font-size:12px"><i class="ph ph-video-camera" style="font-size:14px"></i>Record now</button>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ hasClips }}">
+                <div class="om-scroll" style="flex:1;overflow-y:auto;padding:0 14px 14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-content:start">
+                  <sc-for list="{{ visibleClips }}" as="c" hint-placeholder-count="6">
+                    <div data-act="pick" data-v="{{ c.id }}" onClick="{{ onAction }}" class="card elev-sm" style="padding:0;overflow:hidden;gap:0;cursor:pointer;{{ c.box }}">
+                      <div style="position:relative">
+                        <video src="{{ c.src }}" muted playsinline preload="metadata" style="width:100%;height:74px;object-fit:cover"></video>
+                        <span style="position:absolute;right:4px;bottom:4px;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(11,12,20,.75);font-variant-numeric:tabular-nums">{{ c.len }}</span>
+                      </div>
+                      <div style="padding:7px 8px 8px;display:flex;flex-direction:column;gap:5px">
+                        <div style="font-size:12px;line-height:1.25">{{ c.title }}</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:3px">
+                          <sc-for list="{{ c.tags }}" as="tg" hint-placeholder-count="2">
+                            <span class="tag tag-neutral" style="font-size:9px;padding:1px 6px">{{ tg }}</span>
+                          </sc-for>
+                        </div>
+                        <div style="font-size:10px;color:color-mix(in srgb, var(--color-text) 45%, transparent)">{{ c.date }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+
+          <sc-if value="{{ pick }}">
+            <div onClick="{{ onAction }}" data-act="closePick" style="position:absolute;inset:0;background:color-mix(in srgb, #0b0c14 55%, transparent)"></div>
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:330px;padding:12px;border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:10px">
+                <video src="{{ pickSrc }}" muted playsinline preload="metadata" style="width:96px;height:56px;object-fit:cover;border-radius:var(--radius-sm);flex:none"></video>
+                <div style="min-width:0">
+                  <div style="font-family:var(--font-heading);font-size:14px">{{ pickTitle }}</div>
+                  <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 50%, transparent)">{{ pickMeta }}</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-primary" data-act="load" data-v="L" onClick="{{ onAction }}" style="flex:1;font-size:12px">Load left</button>
+                <button class="btn btn-primary" data-act="load" data-v="R" onClick="{{ onAction }}" style="flex:1;font-size:12px">Load right</button>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isImport }}">
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+            <div style="padding:10px 14px;display:flex;align-items:center;gap:8px">
+              <button class="btn btn-icon btn-secondary" data-act="go" data-v="library" onClick="{{ onAction }}" style="width:30px;height:30px"><i class="ph ph-arrow-left" style="font-size:15px"></i></button>
+              <h4 style="margin:0">Tag this clip</h4>
+              <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent)">from device storage</span>
+            </div>
+            <div style="flex:1;display:flex;gap:18px;padding:4px 14px 14px;min-height:0">
+              <div style="width:268px;flex:none;display:flex;flex-direction:column;gap:8px">
+                <video src="media/training.mp4" muted playsinline preload="metadata" style="width:100%;height:150px;object-fit:cover;border-radius:var(--radius-md)"></video>
+                <div style="font-size:12px">VID_20260812_1043.mp4</div>
+                <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Internal storage / DCIM / Camera · 18.4 MB</div>
+              </div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                <div class="field">
+                  <label>Tags</label>
+                  <input class="input" placeholder="Type a tag, e.g. backflip" value="{{ tagInput }}" data-k="tagInput" onInput="{{ onSlider }}" onKeyDown="{{ onTagKey }}" style="font-size:13px">
+                </div>
+                <sc-if value="{{ hasSug }}">
+                  <div style="display:flex;flex-direction:column;border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-sm);overflow:hidden">
+                    <sc-for list="{{ sug }}" as="s" hint-placeholder-count="3">
+                      <button data-act="addTag" data-v="{{ s.name }}" onClick="{{ onAction }}" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:0;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;text-align:left" style-hover="background:color-mix(in srgb, var(--color-accent) 14%, transparent)">
+                        <i class="ph ph-tag" style="font-size:13px;color:var(--color-accent)"></i>
+                        <span>{{ s.name }}</span>
+                        <span style="margin-left:auto;font-size:10px;color:color-mix(in srgb, var(--color-text) 40%, transparent)">{{ s.count }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <div style="display:flex;flex-wrap:wrap;gap:5px;align-content:start;min-height:30px">
+                  <sc-for list="{{ importTags }}" as="t" hint-placeholder-count="2">
+                    <button class="tag tag-accent" data-act="rmTag" data-v="{{ t }}" onClick="{{ onAction }}" style="cursor:pointer;gap:5px;font:inherit;font-size:11px;padding:3px 8px;border:0">{{ t }}<i class="ph ph-x" style="font-size:10px"></i></button>
+                  </sc-for>
+                </div>
+                <div style="margin-top:auto;display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent)">Mix trick, person, gym — no fixed fields.</span>
+                  <button class="btn btn-secondary" data-act="go" data-v="library" onClick="{{ onAction }}" style="margin-left:auto;font-size:12px">Cancel</button>
+                  <button class="btn btn-primary" data-act="saveImport" onClick="{{ onAction }}" style="font-size:12px">Add to library</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRecord }}">
+          <div style="position:absolute;inset:0;background:#000">
+            <video src="media/training.mp4" muted playsinline preload="auto" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5"></video>
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:220px;height:140px;border:1px solid color-mix(in srgb, var(--color-text) 25%, transparent);border-radius:var(--radius-sm)"></div>
+            <div style="position:absolute;left:0;right:0;top:0;padding:10px 14px;display:flex;align-items:center;gap:8px">
+              <sc-if value="{{ recording }}" hint-placeholder-val="{{ true }}">
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;background:rgba(11,12,20,.7);font-size:12px;font-variant-numeric:tabular-nums"><i class="ph-fill ph-circle" style="font-size:9px;color:var(--color-accent);animation:om-pulse 1.1s infinite"></i>{{ recTxt }}</span>
+              </sc-if>
+              <span style="margin-left:auto;font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(11,12,20,.7);color:var(--color-neutral-300)">Replacing {{ recSlotName }} · device default settings</span>
+            </div>
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:14px;display:flex;align-items:center;justify-content:center;gap:14px">
+              <sc-if value="{{ recording }}" hint-placeholder-val="{{ true }}">
+                <button data-act="stopRec" onClick="{{ onAction }}" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--color-neutral-100);background:var(--color-accent);cursor:pointer"></button>
+              </sc-if>
+              <sc-if value="{{ recDone }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-lg)">
+                  <span style="font-size:12px">Take of {{ recTxt }} — use it?</span>
+                  <button class="btn btn-secondary" data-act="retake" onClick="{{ onAction }}" style="font-size:12px">Retake</button>
+                  <button class="btn btn-primary" data-act="useTake" onClick="{{ onAction }}" style="font-size:12px">Replace {{ recSlotName }}</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ toast }}">
+          <div style="position:absolute;left:50%;bottom:{{ toastY }};z-index:9;transform:translateX(-50%);padding:7px 12px;border-radius:20px;background:var(--color-surface);box-shadow:var(--shadow-md);font-size:12px;white-space:nowrap">{{ toast }}</div>
+        </sc-if>
+
+        <div style="position:absolute;left:50%;bottom:3px;transform:translateX(-50%);width:96px;height:3px;border-radius:2px;background:color-mix(in srgb, var(--color-text) 30%, transparent);pointer-events:none"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-right:4px">Jump to</span>
+      <button class="btn btn-ghost" data-act="go" data-v="play" onClick="{{ onAction }}" style="font-size:12px">Playback</button>
+      <button class="btn btn-ghost" data-act="go" data-v="library" onClick="{{ onAction }}" style="font-size:12px">Library</button>
+      <button class="btn btn-ghost" data-act="import" onClick="{{ onAction }}" style="font-size:12px">Import + tagging</button>
+      <button class="btn btn-ghost" data-act="record" onClick="{{ onAction }}" style="font-size:12px">Record / replace</button>
+      <button class="btn btn-ghost" data-act="go" data-v="empty" onClick="{{ onAction }}" style="font-size:12px">First run</button>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <h4 style="margin:0">Three open decisions</h4>
+      <p style="margin:0;max-width:70ch;font-size:13px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Each is an alternative to how <a href="#1a">1a</a> handles it. Say which you want and I'll fold it into the prototype.</p>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+
+      <div id="1b" style="width:368px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span class="tag tag-accent">1b</span><span style="font-size:12px">Controls on a right rail</span></div>
+        <div style="position:relative;height:180px;border-radius:var(--radius-md);overflow:hidden;background:#000;box-shadow:var(--shadow-sm)">
+          <video src="media/reference.mp4" muted playsinline preload="metadata" style="position:absolute;left:0;top:0;width:60%;height:100%;object-fit:cover"></video>
+          <video src="media/training.mp4" muted playsinline preload="metadata" style="position:absolute;left:60%;top:0;width:24%;height:100%;object-fit:cover"></video>
+          <div style="position:absolute;right:0;top:0;bottom:0;width:16%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;background:rgba(11,12,20,.9)">
+            <i class="ph ph-play" style="font-size:15px;color:var(--color-accent)"></i>
+            <i class="ph ph-caret-left" style="font-size:14px;color:var(--color-neutral-300)"></i>
+            <i class="ph ph-caret-right" style="font-size:14px;color:var(--color-neutral-300)"></i>
+            <i class="ph ph-gauge" style="font-size:14px;color:var(--color-neutral-300)"></i>
+            <i class="ph ph-lock-simple" style="font-size:14px;color:var(--color-neutral-300)"></i>
+          </div>
+        </div>
+        <p style="margin:0;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Always reachable under the thumb holding the phone, and it never covers the trick. Costs about a sixth of the width permanently, and the trim timeline still has to live somewhere.</p>
+      </div>
+
+      <div id="1c" style="width:368px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span class="tag tag-accent">1c</span><span style="font-size:12px">Library grouped by tag, not searched</span></div>
+        <div style="height:180px;border-radius:var(--radius-md);overflow:hidden;background:var(--color-neutral-900);box-shadow:var(--shadow-sm);padding:10px;display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent)">backflip · 12</div>
+            <div style="display:flex;gap:5px">
+              <video src="media/reference.mp4" muted playsinline preload="metadata" style="width:66px;height:38px;object-fit:cover;border-radius:3px"></video>
+              <video src="media/training.mp4" muted playsinline preload="metadata" style="width:66px;height:38px;object-fit:cover;border-radius:3px"></video>
+              <video src="media/reference.mp4" muted playsinline preload="metadata" style="width:66px;height:38px;object-fit:cover;border-radius:3px"></video>
+              <div style="width:66px;height:38px;border-radius:3px;background:color-mix(in srgb, var(--color-text) 8%, transparent);display:grid;place-items:center;font-size:10px;color:var(--color-neutral-400)">+9</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-400)">round-off · 5</div>
+            <div style="display:flex;gap:5px">
+              <video src="media/training.mp4" muted playsinline preload="metadata" style="width:66px;height:38px;object-fit:cover;border-radius:3px"></video>
+              <video src="media/reference.mp4" muted playsinline preload="metadata" style="width:66px;height:38px;object-fit:cover;border-radius:3px"></video>
+              <div style="width:66px;height:38px;border-radius:3px;background:color-mix(in srgb, var(--color-text) 8%, transparent);display:grid;place-items:center;font-size:10px;color:var(--color-neutral-400)">+3</div>
+            </div>
+          </div>
+        </div>
+        <p style="margin:0;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Every tag becomes a shelf you scroll sideways, so comparing tries of one trick is one row away. Clips with several tags appear on several shelves, which can feel like duplicates.</p>
+      </div>
+
+      <div id="1d" style="width:368px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span class="tag tag-accent">1d</span><span style="font-size:12px">Lock by dragging the two tracks together</span></div>
+        <div style="height:180px;border-radius:var(--radius-md);overflow:hidden;background:var(--color-neutral-900);box-shadow:var(--shadow-sm);padding:14px;display:flex;flex-direction:column;justify-content:center;gap:10px">
+          <div style="position:relative;height:24px;border-radius:5px;background:color-mix(in srgb, var(--color-text) 9%, transparent)">
+            <div style="position:absolute;top:0;bottom:0;left:14%;right:38%;background:color-mix(in srgb, var(--color-accent) 22%, transparent);border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent)"></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;color:var(--color-accent);font-size:11px">
+            <i class="ph ph-arrows-in-line-vertical" style="font-size:16px"></i>drag together to lock
+          </div>
+          <div style="position:relative;height:24px;border-radius:5px;background:color-mix(in srgb, var(--color-text) 9%, transparent)">
+            <div style="position:absolute;top:0;bottom:0;left:26%;right:22%;background:color-mix(in srgb, var(--color-accent) 22%, transparent);border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent)"></div>
+          </div>
+        </div>
+        <p style="margin:0;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">The gesture shows what locking means — two windows becoming one — instead of a button whose effect you have to remember. Harder to find the first time, and it needs a visible unlock affordance.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;play&quot;,&quot;library&quot;,&quot;import&quot;,&quot;record&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;play&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;showChrome&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;displayMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;side&quot;,&quot;overlay&quot;],&quot;default&quot;:&quot;side&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Playback&quot;},&quot;startLocked&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Playback&quot;}}">
+class Component extends DCLogic {
+  refL = React.createRef();
+  refR = React.createRef();
+
+  lib = [
+    { id: 'c1', title: 'Backflip — coach demo', src: 'media/reference.mp4', tags: ['backflip', 'reference'], date: 'Jan 12', len: '0:06' },
+    { id: 'c2', title: 'Backflip — try 04', src: 'media/training.mp4', tags: ['backflip', 'ethan turner', 'take charge gymnastics'], date: 'Aug 12 · latest', len: '0:05' },
+    { id: 'c3', title: 'Backflip — try 03', src: 'media/training.mp4', tags: ['backflip', 'ethan turner'], date: 'Jul 28', len: '0:05' },
+    { id: 'c4', title: 'Backflip — try 02', src: 'media/training.mp4', tags: ['backflip', 'ethan turner'], date: 'Jun 30', len: '0:07' },
+    { id: 'c5', title: 'Round-off — try 01', src: 'media/reference.mp4', tags: ['round-off', 'ethan turner'], date: 'Jun 02', len: '0:04' },
+    { id: 'c6', title: 'Tuck — warm-up', src: 'media/training.mp4', tags: ['tuck', 'maya lin', 'take charge gymnastics'], date: 'May 19', len: '0:08' }
+  ];
+
+  state = {
+    screen: (this.props || {}).startScreen || 'play',
+    display: (this.props || {}).displayMode || 'side',
+    locked: !!(this.props || {}).startLocked,
+    chrome: (this.props || {}).showChrome !== false,
+    sel: 'L',
+    playing: false,
+    opacity: 0.5,
+    top: 'R',
+    triesOpen: false,
+    pick: null,
+    search: '',
+    tags: [],
+    toast: '',
+    rec: 0,
+    recording: false,
+    recDone: false,
+    pos: { L: 0, R: 0 },
+    tagInput: '',
+    importTags: ['backflip'],
+    clips: {
+      L: { title: 'L · backflip · coach demo', src: 'media/reference.mp4', in: 0.12, out: 0.62, speed: 0.5, zoom: 1, px: 0, py: 0 },
+      R: { title: 'R · backflip · try 04', src: 'media/training.mp4', in: 0.28, out: 0.86, speed: 0.5, zoom: 1.25, px: -4, py: -6 }
+    }
+  };
+
+  componentDidMount() {
+    this.tick = setInterval(() => this.loop(), 70);
+    window.addEventListener('pointermove', this.onMove);
+    window.addEventListener('pointerup', this.onUp);
+    this.slots().forEach(s => {
+      const v = this.v(s);
+      if (!v) return;
+      const init = () => {
+        const c = this.state.clips[s];
+        if (v.duration) v.currentTime = c.in * v.duration;
+        v.playbackRate = c.speed;
+      };
+      if (v.readyState >= 1) init();
+      v.addEventListener('loadedmetadata', init);
+    });
+    this.applyRates();
+  }
+  componentWillUnmount() {
+    clearInterval(this.tick);
+    clearInterval(this.recTick);
+    window.removeEventListener('pointermove', this.onMove);
+    window.removeEventListener('pointerup', this.onUp);
+  }
+
+  v(slot) { return (slot === 'L' ? this.refL : this.refR).current; }
+  slots() { return ['L', 'R']; }
+  active() { return this.state.locked ? this.slots() : [this.state.sel]; }
+
+  applyRates() {
+    this.slots().forEach(s => {
+      const v = this.v(s);
+      if (v) v.playbackRate = Math.max(0.1, this.state.clips[s].speed);
+    });
+  }
+
+  windowLen(slot) {
+    const v = this.v(slot), c = this.state.clips[slot];
+    return v && v.duration ? (c.out - c.in) * v.duration : 0;
+  }
+
+  loop() {
+    if (this.state.screen !== 'play') return;
+    const pos = {};
+    let lim = Infinity;
+    if (this.state.locked) this.slots().forEach(s => { const l = this.windowLen(s); if (l) lim = Math.min(lim, l); });
+    this.slots().forEach(s => {
+      const v = this.v(s), c = this.state.clips[s];
+      if (!v || !v.duration) { pos[s] = c.in; return; }
+      const d = v.duration, start = c.in * d;
+      const len = isFinite(lim) ? lim : (c.out - c.in) * d;
+      let t = v.currentTime;
+      if (t < start - 0.08 || t > start + len) { t = start; v.currentTime = t; }
+      pos[s] = t / d;
+    });
+    if (pos.L !== this.state.pos.L || pos.R !== this.state.pos.R) this.setState({ pos });
+  }
+
+  flash(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this.toastT);
+    this.toastT = setTimeout(() => this.setState({ toast: '' }), 2200);
+  }
+
+  seek(slot, frac) {
+    const v = this.v(slot);
+    if (v && v.duration) v.currentTime = Math.max(0, Math.min(0.999, frac)) * v.duration;
+    this.setState(st => ({ pos: Object.assign({}, st.pos, { [slot]: frac }) }));
+  }
+
+  setClip(slot, patch) {
+    this.setState(st => ({ clips: Object.assign({}, st.clips, { [slot]: Object.assign({}, st.clips[slot], patch) }) }));
+  }
+
+  play(on) {
+    const act = this.active();
+    this.slots().forEach(s => {
+      const v = this.v(s);
+      if (!v) return;
+      if (on && act.indexOf(s) > -1) { v.playbackRate = this.state.clips[s].speed; v.play().catch(() => {}); }
+      else v.pause();
+    });
+    this.setState({ playing: on });
+  }
+
+  onAction = (e) => {
+    const d = e.currentTarget.dataset, val = d.v;
+    switch (d.act) {
+      case 'go':
+        this.play(false);
+        this.setState({ screen: val, pick: null, triesOpen: false, recording: false, recDone: false });
+        break;
+      case 'tapChrome':
+        this.setState(st => ({ chrome: !st.chrome, triesOpen: false }));
+        break;
+      case 'sel':
+        if (this.state.locked) { this.flash('Unlock the timeline to control one clip'); break; }
+        this.play(false);
+        this.setState({ sel: val });
+        break;
+      case 'disp':
+        this.setState({ display: val });
+        break;
+      case 'play':
+        this.play(!this.state.playing);
+        break;
+      case 'step': {
+        const n = parseInt(val, 10);
+        this.play(false);
+        this.active().forEach(s => {
+          const v = this.v(s);
+          if (v) v.currentTime = Math.max(0, v.currentTime + n / 30);
+        });
+        break;
+      }
+      case 'swap':
+        this.setState(st => ({ top: st.top === 'L' ? 'R' : 'L' }));
+        break;
+      case 'lock': {
+        const next = !this.state.locked;
+        this.play(false);
+        this.setState({ locked: next });
+        if (next) {
+          this.slots().forEach(s => this.seek(s, this.state.clips[s].in));
+          this.flash('Locked — looping the shorter window');
+        } else this.flash('Unlocked — controls apply to ' + this.state.sel);
+        break;
+      }
+      case 'tries':
+        this.setState(st => ({ triesOpen: !st.triesOpen }));
+        break;
+      case 'loadTry':
+        this.setState({ triesOpen: false, locked: false });
+        this.setClip(this.state.locked ? 'R' : this.state.sel, { title: this.state.sel + ' · backflip · ' + val });
+        this.flash('Loaded ' + val + ' — pan & zoom kept');
+        break;
+      case 'replace':
+        this.play(false);
+        this.setState({ screen: 'record', recording: true, recDone: false, rec: 0 });
+        this.startRec();
+        break;
+      case 'record':
+        this.setState({ screen: 'record', recording: true, recDone: false, rec: 0 });
+        this.startRec();
+        break;
+      case 'stopRec':
+        clearInterval(this.recTick);
+        this.setState({ recording: false, recDone: true });
+        break;
+      case 'retake':
+        this.setState({ recording: true, recDone: false, rec: 0 });
+        this.startRec();
+        break;
+      case 'useTake': {
+        const slot = this.state.locked ? 'L' : this.state.sel;
+        this.setState({ screen: 'play', recDone: false, locked: false });
+        this.setClip(slot, { title: slot + ' · backflip · new take' });
+        this.flash(slot === 'L' ? 'Left replaced — pan & zoom re-applied' : 'Right replaced — pan & zoom re-applied');
+        break;
+      }
+      case 'tag':
+        this.setState(st => ({ tags: st.tags.indexOf(val) > -1 ? st.tags.filter(t => t !== val) : st.tags.concat([val]) }));
+        break;
+      case 'pick':
+        this.setState({ pick: val });
+        break;
+      case 'closePick':
+        this.setState({ pick: null });
+        break;
+      case 'load': {
+        const c = this.lib.find(x => x.id === this.state.pick);
+        if (c) {
+          this.setClip(val, { title: val + ' · ' + c.tags.slice(0, 2).join(' · ') });
+          this.flash(c.title + ' → ' + (val === 'L' ? 'left' : 'right') + ' slot');
+        }
+        this.setState({ pick: null, screen: 'play', locked: false, sel: val });
+        break;
+      }
+      case 'import':
+        this.setState({ screen: 'import' });
+        break;
+      case 'addTag':
+        this.addTag(val);
+        break;
+      case 'rmTag':
+        this.setState(st => ({ importTags: st.importTags.filter(t => t !== val) }));
+        break;
+      case 'saveImport':
+        this.setState({ screen: 'library', tagInput: '' });
+        this.flash('Added with ' + this.state.importTags.length + ' tags');
+        break;
+    }
+  };
+
+  startRec() {
+    clearInterval(this.recTick);
+    this.recTick = setInterval(() => this.setState(st => ({ rec: st.rec + 1 })), 100);
+  }
+
+  addTag(name) {
+    const n = (name || '').trim().toLowerCase();
+    if (!n) return;
+    this.setState(st => ({ tagInput: '', importTags: st.importTags.indexOf(n) > -1 ? st.importTags : st.importTags.concat([n]) }));
+  }
+
+  onTagKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); this.addTag(this.state.tagInput); } };
+
+  onSlider = (e) => {
+    const k = e.currentTarget.dataset.k, raw = e.currentTarget.value;
+    if (k === 'search' || k === 'tagInput') { this.setState({ [k]: raw }); return; }
+    const n = parseFloat(raw);
+    if (k === 'opacity') { this.setState({ opacity: n }); return; }
+    this.active().forEach(s => {
+      this.setClip(s, k === 'speed' ? { speed: n } : { zoom: n });
+      const v = this.v(s);
+      if (v && k === 'speed') v.playbackRate = n;
+    });
+  };
+
+  onTrackDown = (e) => {
+    const track = e.currentTarget;
+    const slot = track.dataset.slot;
+    const kind = e.target.dataset.kind || 'play';
+    this.drag = { el: track, slot, kind };
+    if (kind === 'play') this.play(false);
+    this.onMove(e);
+  };
+
+  onMove = (e) => {
+    if (this.pan) {
+      const dx = e.clientX - this.pan.x, dy = e.clientY - this.pan.y;
+      this.pan.moved = this.pan.moved || Math.abs(dx) + Math.abs(dy) > 5;
+      this.pan.x = e.clientX; this.pan.y = e.clientY;
+      this.active().forEach(s => {
+        const c = this.state.clips[s];
+        this.setClip(s, { px: Math.max(-60, Math.min(60, c.px + dx / 4)), py: Math.max(-60, Math.min(60, c.py + dy / 4)) });
+      });
+      return;
+    }
+    if (!this.drag) return;
+    const r = this.drag.el.getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const { slot, kind } = this.drag;
+    const c = this.state.clips[slot];
+    if (kind === 'in') this.setClip(slot, { in: Math.min(f, c.out - 0.05) });
+    else if (kind === 'out') this.setClip(slot, { out: Math.max(f, c.in + 0.05) });
+    else {
+      const targets = this.state.locked ? this.slots() : [slot];
+      targets.forEach(s => this.seek(s, f));
+    }
+  };
+
+  onUp = () => {
+    if (this.pan && !this.pan.moved) this.setState(st => ({ chrome: !st.chrome, triesOpen: false }));
+    this.pan = null;
+    this.drag = null;
+  };
+
+  onStageDown = (e) => { this.pan = { x: e.clientX, y: e.clientY, moved: false }; };
+
+  fmt(slot) {
+    const v = this.v(slot), c = this.state.clips[slot];
+    const d = v && v.duration ? v.duration : 0;
+    const cur = ((this.state.pos[slot] || 0) * d - c.in * d);
+    const len = (c.out - c.in) * d;
+    return (cur > 0 ? cur : 0).toFixed(2) + ' / ' + len.toFixed(2) + 's';
+  }
+
+  renderVals() {
+    const st = this.state, sel = st.sel, locked = st.locked;
+    const side = st.display === 'side';
+    const c = st.clips[locked ? 'L' : sel];
+    const box = (slot) => {
+      if (side) return (slot === 'L' ? 'left:0;width:50%;' : 'left:50%;width:50%;') + 'opacity:1;z-index:1';
+      const isTop = st.top === slot;
+      return 'left:0;width:100%;z-index:' + (isTop ? 2 : 1) + ';opacity:' + (isTop ? st.opacity : 1);
+    };
+    const tr = (slot) => {
+      const k = st.clips[slot];
+      return 'scale(' + k.zoom + ') translate(' + k.px + 'px,' + k.py + 'px)';
+    };
+    const trackFor = (slot, label) => {
+      const k = st.clips[slot];
+      return {
+        slot, label,
+        labelColor: (!locked && sel === slot) ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-text) 50%, transparent)',
+        editable: !locked,
+        winBox: 'left:' + (k.in * 100).toFixed(2) + '%;width:' + ((k.out - k.in) * 100).toFixed(2) + '%',
+        inBox: 'left:' + (k.in * 100).toFixed(2) + '%',
+        outBox: 'left:' + (k.out * 100).toFixed(2) + '%',
+        playBox: 'left:' + ((st.pos[slot] || 0) * 100).toFixed(2) + '%',
+        time: this.fmt(slot)
+      };
+    };
+    const q = st.search.trim().toLowerCase();
+    const visible = this.lib.filter(x =>
+      (!q || x.tags.some(t => t.indexOf(q) > -1) || x.title.toLowerCase().indexOf(q) > -1) &&
+      (!st.tags.length || st.tags.every(t => x.tags.indexOf(t) > -1))
+    );
+    const allTags = [];
+    this.lib.forEach(x => x.tags.forEach(t => { if (allTags.indexOf(t) < 0) allTags.push(t); }));
+    const counts = {};
+    this.lib.forEach(x => x.tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
+    const ti = st.tagInput.trim().toLowerCase();
+    const picked = this.lib.find(x => x.id === st.pick);
+    const filtered = st.screen === 'empty';
+
+    return {
+      refL: this.refL, refR: this.refR, onAction: this.onAction, onSlider: this.onSlider,
+      onTrackDown: this.onTrackDown, onStageDown: this.onStageDown, onTagKey: this.onTagKey,
+
+      isPlay: st.screen === 'play', isLibrary: st.screen === 'library' || filtered,
+      isImport: st.screen === 'import', isRecord: st.screen === 'record',
+      isEmpty: filtered, hasClips: !filtered,
+
+      sideBySide: side, overlayMode: !side, chrome: st.chrome, triesOpen: st.triesOpen,
+      paneLBox: box('L'), paneRBox: box('R'), trL: tr('L'), trR: tr('R'),
+      selBox: (!locked && side) ? 'box-shadow:inset ' + (sel === 'L' ? '2px' : '-2px') + ' 0 0 0 var(--color-accent)' : '',
+      stageCursor: c.zoom > 1 ? 'grab' : 'pointer',
+
+      nameL: st.clips.L.title, nameR: st.clips.R.title,
+      chipL: (!locked && sel === 'L') ? 'tag-outline' : 'tag-neutral',
+      chipR: (!locked && sel === 'R') ? 'tag-outline' : 'tag-neutral',
+      segSide: side ? 'color:var(--color-accent);box-shadow:inset 0 0 0 1px var(--color-accent)' : 'color:var(--color-text)',
+      segOver: side ? 'color:var(--color-text)' : 'color:var(--color-accent);box-shadow:inset 0 0 0 1px var(--color-accent)',
+
+      tracks: locked
+        ? [{ slot: 'L', label: 'Locked', labelColor: 'var(--color-accent)', editable: false,
+             winBox: 'left:' + (st.clips.L.in * 100).toFixed(2) + '%;width:' + ((st.clips.L.out - st.clips.L.in) * 100).toFixed(2) + '%',
+             inBox: '', outBox: '', playBox: 'left:' + ((st.pos.L || 0) * 100).toFixed(2) + '%',
+             time: this.fmt('L') }]
+        : [trackFor('L', 'Clip L'), trackFor('R', 'Clip R')],
+
+      playIcon: st.playing ? 'ph ph-pause' : 'ph ph-play',
+      speed: c.speed, speedTxt: c.speed.toFixed(2).replace(/0$/, '') + '×',
+      zoom: c.zoom, opacity: st.opacity, opacityTxt: Math.round(st.opacity * 100) + '%',
+      lockCls: locked ? 'btn-primary' : 'btn-secondary',
+      lockIcon: locked ? 'ph ph-lock-simple' : 'ph ph-lock-simple-open',
+      lockLabel: locked ? 'Locked' : 'Lock timeline',
+      replaceLabel: 'Replace ' + (locked ? 'L' : sel),
+
+      tries: [
+        { name: 'try 04', date: 'Aug 12 · today', src: 'media/training.mp4', badge: 'latest', cls: 'tag-accent' },
+        { name: 'try 03', date: 'Jul 28', src: 'media/training.mp4', badge: '0:05', cls: 'tag-neutral' },
+        { name: 'try 02', date: 'Jun 30', src: 'media/training.mp4', badge: '0:07', cls: 'tag-neutral' },
+        { name: 'coach demo', date: 'Jan 12', src: 'media/reference.mp4', badge: 'ref', cls: 'tag-neutral' }
+      ],
+      triesTarget: locked ? 'right' : (sel === 'L' ? 'left' : 'right'),
+
+      search: st.search,
+      tagList: (filtered ? [] : allTags).map(t => ({ name: t, cls: st.tags.indexOf(t) > -1 ? 'tag-accent' : 'tag-outline' })),
+      libTitle: st.tags.length ? st.tags.join(' + ') : 'All clips',
+      libCount: filtered ? '0 clips' : visible.length + ' clips',
+      visibleClips: visible.map(x => Object.assign({}, x, { box: '' })),
+      pick: !!st.pick, pickSrc: picked ? picked.src : '', pickTitle: picked ? picked.title : '',
+      pickMeta: picked ? picked.tags.join(' · ') + ' · ' + picked.date : '',
+
+      tagInput: st.tagInput,
+      importTags: st.importTags,
+      sug: ti ? allTags.filter(t => t.indexOf(ti) > -1 && st.importTags.indexOf(t) < 0).slice(0, 4).map(t => ({ name: t, count: counts[t] + ' clips' })) : [],
+      hasSug: !!(ti && allTags.some(t => t.indexOf(ti) > -1 && st.importTags.indexOf(t) < 0)),
+
+      recording: st.recording, recDone: st.recDone,
+      recTxt: (st.rec / 10).toFixed(1) + 's',
+      recSlotName: (locked ? 'L' : sel) === 'L' ? 'left slot' : 'right slot',
+
+      toast: st.toast, toastY: st.chrome && st.screen === 'play' ? '132px' : '24px'
+    };
+  }
+}
+</script>
+</body>
+</html>
