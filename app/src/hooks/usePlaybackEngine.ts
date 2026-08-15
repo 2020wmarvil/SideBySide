@@ -134,6 +134,7 @@ export function usePlaybackEngine(session: Session) {
   );
 
   const togglePlay = useCallback(() => applyPlayState(!playing), [applyPlayState, playing]);
+  const pause = useCallback(() => applyPlayState(false), [applyPlayState]);
 
   const step = useCallback(
     (n: number) => {
@@ -184,6 +185,8 @@ export function usePlaybackEngine(session: Session) {
     pos,
     toast,
     togglePlay,
+    pause,
+    seek,
     step,
     setSpeed,
     setZoom,

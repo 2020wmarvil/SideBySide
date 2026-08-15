@@ -1,5 +1,10 @@
-import { StyleSheet, Text, View, type DimensionValue } from "react-native";
+/* eslint-disable react-hooks/refs -- see Stage.tsx */
+import { useRef, useState } from "react";
+import { StyleSheet, Text, View, type DimensionValue, type LayoutChangeEvent } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { color, radius, withAlpha } from "@/theme";
+
+type DragKind = "in" | "out" | "play";
 
 type TrimTrackProps = {
   label: string;
@@ -9,25 +14,75 @@ type TrimTrackProps = {
   outFrac: number;
   playheadFrac: number;
   timeText: string;
+  onSetIn?: (frac: number) => void;
+  onSetOut?: (frac: number) => void;
+  onScrub?: (frac: number) => void;
+  onScrubStart?: () => void;
 };
 
-export function TrimTrack({ label, labelColor, editable, inFrac, outFrac, playheadFrac, timeText }: TrimTrackProps) {
+const HANDLE_HIT_RADIUS = 16;
+
+export function TrimTrack({
+  label,
+  labelColor,
+  editable,
+  inFrac,
+  outFrac,
+  playheadFrac,
+  timeText,
+  onSetIn,
+  onSetOut,
+  onScrub,
+  onScrubStart,
+}: TrimTrackProps) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const kind = useRef<DragKind>("play");
+
+  const onTrackLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
+
+  const applyAt = (x: number) => {
+    if (trackWidth <= 0) return;
+    const frac = Math.max(0, Math.min(1, x / trackWidth));
+    if (kind.current === "in") onSetIn?.(frac);
+    else if (kind.current === "out") onSetOut?.(frac);
+    else onScrub?.(frac);
+  };
+
+  const gesture = Gesture.Pan()
+    .minDistance(0)
+    .onBegin((e) => {
+      if (trackWidth <= 0) {
+        kind.current = "play";
+      } else if (editable && Math.abs(e.x - inFrac * trackWidth) <= HANDLE_HIT_RADIUS) {
+        kind.current = "in";
+      } else if (editable && Math.abs(e.x - outFrac * trackWidth) <= HANDLE_HIT_RADIUS) {
+        kind.current = "out";
+      } else {
+        kind.current = "play";
+      }
+      if (kind.current === "play") onScrubStart?.();
+      applyAt(e.x);
+    })
+    .onChange((e) => applyAt(e.x));
+
   return (
     <View style={styles.row}>
       <Text style={[styles.label, { color: labelColor }]} numberOfLines={1}>
         {label}
       </Text>
-      <View style={styles.track}>
-        <View
-          style={[
-            styles.window,
-            { left: pct(inFrac), width: pct(Math.max(0, outFrac - inFrac)) },
-          ]}
-        />
-        {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -5 }]} />}
-        {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -4 }]} />}
-        <View style={[styles.playhead, { left: pct(playheadFrac) }]} />
-      </View>
+      <GestureDetector gesture={gesture}>
+        <View style={styles.track} onLayout={onTrackLayout}>
+          <View
+            style={[
+              styles.window,
+              { left: pct(inFrac), width: pct(Math.max(0, outFrac - inFrac)) },
+            ]}
+          />
+          {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -5 }]} />}
+          {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -4 }]} />}
+          <View style={[styles.playhead, { left: pct(playheadFrac) }]} />
+        </View>
+      </GestureDetector>
       <Text style={styles.time} numberOfLines={1}>
         {timeText}
       </Text>

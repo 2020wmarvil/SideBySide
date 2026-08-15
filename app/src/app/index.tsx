@@ -43,6 +43,8 @@ export default function PlaybackScreen() {
     pos,
     toast,
     togglePlay,
+    pause,
+    seek,
     step,
     setSpeed,
     setZoom,
@@ -52,6 +54,16 @@ export default function PlaybackScreen() {
 
   const activeSlot: Slot = session.locked ? "L" : session.sel;
   const activeClip = session.clips[activeSlot];
+
+  const handlePan = (dx: number, dy: number) => {
+    session.activeSlots.forEach((s) => {
+      const c = session.clips[s];
+      session.patchSlot(s, {
+        px: Math.max(-60, Math.min(60, c.px + dx / 4)),
+        py: Math.max(-60, Math.min(60, c.py + dy / 4)),
+      });
+    });
+  };
 
   const trackFor = (slot: Slot, label: string): TrackRow => {
     const c = session.clips[slot];
@@ -65,6 +77,10 @@ export default function PlaybackScreen() {
       outFrac: c.out,
       playheadFrac: pos[slot],
       timeText: formatTime(duration, c.in, c.out, pos[slot]),
+      onSetIn: (frac) => session.patchSlot(slot, { in: Math.min(frac, c.out - 0.05) }),
+      onSetOut: (frac) => session.patchSlot(slot, { out: Math.max(frac, c.in + 0.05) }),
+      onScrub: (frac) => seek(slot, frac),
+      onScrubStart: pause,
     };
   };
 
@@ -80,6 +96,8 @@ export default function PlaybackScreen() {
         editable: false,
         labelColor: color.accent,
         timeText: `${cur.toFixed(2)} / ${lockedLen.toFixed(2)}s`,
+        // locked scrubbing moves both clips together, not just L.
+        onScrub: (frac) => session.activeSlots.forEach((s) => seek(s, frac)),
       },
     ];
   } else {
@@ -98,6 +116,7 @@ export default function PlaybackScreen() {
         sel={session.sel}
         locked={session.locked}
         onTapStage={() => setChrome((c) => !c)}
+        onPan={handlePan}
       />
 
       {chrome && (

@@ -13,6 +13,10 @@ export type TrackRow = {
   outFrac: number;
   playheadFrac: number;
   timeText: string;
+  onSetIn: (frac: number) => void;
+  onSetOut: (frac: number) => void;
+  onScrub: (frac: number) => void;
+  onScrubStart: () => void;
 };
 
 type TransportBarProps = {
@@ -70,6 +74,10 @@ export function TransportBar({
           outFrac={t.outFrac}
           playheadFrac={t.playheadFrac}
           timeText={t.timeText}
+          onSetIn={t.onSetIn}
+          onSetOut={t.onSetOut}
+          onScrub={t.onScrub}
+          onScrubStart={t.onScrubStart}
         />
       ))}
 

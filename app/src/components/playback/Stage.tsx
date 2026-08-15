@@ -1,4 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+/* eslint-disable react-hooks/refs --
+ * react-native-gesture-handler's Gesture.Pan().onBegin(fn)... builder just
+ * registers callbacks during render — it doesn't call them. They run later,
+ * asynchronously, from the native gesture responder, so reading/writing a
+ * ref inside them doesn't have the render-time hazard this rule guards
+ * against; the compiler's static analysis can't tell the difference. */
+import { useRef } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { VideoView, type VideoPlayer } from "expo-video";
 import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
@@ -14,9 +22,24 @@ type StageProps = {
   sel: Slot;
   locked: boolean;
   onTapStage: () => void;
+  onPan: (dx: number, dy: number) => void;
 };
 
-export function Stage({ playerL, playerR, clips, display, top, opacity, sel, locked, onTapStage }: StageProps) {
+export function Stage({ playerL, playerR, clips, display, top, opacity, sel, locked, onTapStage, onPan }: StageProps) {
+  const moved = useRef(false);
+
+  const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      moved.current = false;
+    })
+    .onChange((e) => {
+      moved.current = moved.current || Math.abs(e.changeX) + Math.abs(e.changeY) > 5;
+      onPan(e.changeX, e.changeY);
+    })
+    .onEnd(() => {
+      if (!moved.current) onTapStage();
+    });
+
   const side = display === "side";
   const showSelection = side && !locked;
 
@@ -68,7 +91,9 @@ export function Stage({ playerL, playerR, clips, display, top, opacity, sel, loc
 
       {side && <View style={styles.divider} />}
 
-      <Pressable style={styles.tapLayer} onPress={onTapStage} />
+      <GestureDetector gesture={panGesture}>
+        <View style={styles.tapLayer} />
+      </GestureDetector>
     </View>
   );
 }
