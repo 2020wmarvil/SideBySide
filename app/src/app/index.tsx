@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -65,6 +65,22 @@ export default function PlaybackScreen() {
     });
   };
 
+  // pinch's `scale` is cumulative since the gesture began, so the zoom each
+  // slot had at that moment is captured once in onPinchBegin and every
+  // onPinchChange event multiplies from that fixed base — not the previous
+  // event's zoom, which would compound the scale factor every frame.
+  const pinchBase = useRef<Record<Slot, number>>({ L: 1, R: 1 });
+  const handlePinchBegin = () => {
+    session.activeSlots.forEach((s) => {
+      pinchBase.current[s] = session.clips[s].zoom;
+    });
+  };
+  const handlePinchChange = (scale: number) => {
+    session.activeSlots.forEach((s) => {
+      session.patchSlot(s, { zoom: Math.max(1, Math.min(3, pinchBase.current[s] * scale)) });
+    });
+  };
+
   const trackFor = (slot: Slot, label: string): TrackRow => {
     const c = session.clips[slot];
     const duration = slot === "L" ? durationL : durationR;
@@ -117,6 +133,8 @@ export default function PlaybackScreen() {
         locked={session.locked}
         onTapStage={() => setChrome((c) => !c)}
         onPan={handlePan}
+        onPinchBegin={handlePinchBegin}
+        onPinchChange={handlePinchChange}
       />
 
       {chrome && (

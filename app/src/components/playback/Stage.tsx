@@ -23,9 +23,24 @@ type StageProps = {
   locked: boolean;
   onTapStage: () => void;
   onPan: (dx: number, dy: number) => void;
+  onPinchBegin: () => void;
+  onPinchChange: (scale: number) => void;
 };
 
-export function Stage({ playerL, playerR, clips, display, top, opacity, sel, locked, onTapStage, onPan }: StageProps) {
+export function Stage({
+  playerL,
+  playerR,
+  clips,
+  display,
+  top,
+  opacity,
+  sel,
+  locked,
+  onTapStage,
+  onPan,
+  onPinchBegin,
+  onPinchChange,
+}: StageProps) {
   const moved = useRef(false);
 
   const panGesture = Gesture.Pan()
@@ -39,6 +54,12 @@ export function Stage({ playerL, playerR, clips, display, top, opacity, sel, loc
     .onEnd(() => {
       if (!moved.current) onTapStage();
     });
+
+  const pinchGesture = Gesture.Pinch()
+    .onBegin(() => onPinchBegin())
+    .onChange((e) => onPinchChange(e.scale));
+
+  const stageGesture = Gesture.Simultaneous(panGesture, pinchGesture);
 
   const side = display === "side";
   const showSelection = side && !locked;
@@ -91,7 +112,7 @@ export function Stage({ playerL, playerR, clips, display, top, opacity, sel, loc
 
       {side && <View style={styles.divider} />}
 
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={stageGesture}>
         <View style={styles.tapLayer} />
       </GestureDetector>
     </View>
