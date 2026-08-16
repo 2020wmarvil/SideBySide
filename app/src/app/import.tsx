@@ -1,5 +1,15 @@
-import { useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,32 +17,35 @@ import * as ImagePicker from "expo-image-picker";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { useThumbnail } from "@/hooks/useThumbnail";
-import { useFreeOrientation } from "@/hooks/useFreeOrientation";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { TagEditor } from "@/components/shared/TagEditor";
 import { slotName } from "@/lib/format";
 import type { Clip, Slot } from "@/data/types";
-import { color, radius, space } from "@/theme";
+import { color, radius, space, withAlpha } from "@/theme";
 
 function formatSize(bytes?: number): string {
   if (!bytes) return "";
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function titleFor(tags: string[], fileName?: string | null): string {
-  if (tags.length > 0) return tags.join(" · ");
+function titleFromFileName(fileName?: string | null): string {
   return fileName?.replace(/\.[^/.]+$/, "") ?? "Imported clip";
 }
+
+// Below this width (portrait phones) the fixed-width preview column leaves
+// too little room for the tag form beside it — stack them instead.
+const WIDE_LAYOUT_MIN_WIDTH = 500;
 
 export default function ImportScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { clips, addClip } = useClipLibrary();
   const session = usePlaybackSession();
   const [permission, requestPermission] = ImagePicker.useMediaLibraryPermissions();
 
-  useFreeOrientation();
+  const isWide = width >= WIDE_LAYOUT_MIN_WIDTH;
 
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [picking, setPicking] = useState(false);
@@ -42,9 +55,17 @@ export default function ImportScreen() {
     if (!slot) return [];
     return clips.find((c) => c.id === session.clips[slot].clipId)?.tags ?? [];
   });
+  const [titleInput, setTitleInput] = useState("");
 
   const thumbUri = useThumbnail(asset?.uri ?? null);
-  const backTo = slot ? "/" : "/library";
+  const backTo = slot ? "/playback" : "/";
+
+  // Defaults the name field to the picked file's name each time a new asset
+  // is chosen (fires once per pick since `asset` is a fresh object each
+  // time), while leaving room for the user to overwrite it below.
+  useEffect(() => {
+    if (asset) setTitleInput(titleFromFileName(asset.fileName));
+  }, [asset]);
 
   // Only ever called from a Pressable's onPress — expo-image-picker's web
   // implementation opens a hidden <input type="file">, and browsers only
@@ -72,11 +93,7 @@ export default function ImportScreen() {
     const newClip: Clip = {
       id: `clip-${Date.now()}`,
       uri: asset.uri,
-      title: slot
-        ? importTags.length
-          ? `${importTags.join(" · ")} — replacement`
-          : "Replacement clip"
-        : titleFor(importTags, asset.fileName),
+      title: titleInput.trim() || titleFromFileName(asset.fileName),
       tags: importTags,
       createdAt: Date.now(),
       durationSec: asset.duration ? asset.duration / 1000 : undefined,
@@ -84,9 +101,9 @@ export default function ImportScreen() {
     addClip(newClip);
     if (slot) {
       session.loadClip(slot, newClip, { keepFraming: true });
-      router.replace("/");
+      router.replace("/playback");
     } else {
-      router.replace("/library");
+      router.replace("/");
     }
   };
 
@@ -123,7 +140,7 @@ export default function ImportScreen() {
             {slot && (
               <Pressable
                 style={styles.cancelButton}
-                onPress={() => router.push({ pathname: "/library", params: { slot } })}
+                onPress={() => router.push({ pathname: "/", params: { slot } })}
               >
                 <Text style={styles.cancelButtonText}>From library</Text>
               </Pressable>
@@ -152,8 +169,12 @@ export default function ImportScreen() {
         <Text style={styles.headerSubtitle}>from device storage</Text>
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.previewCol}>
+      <ScrollView
+        style={styles.bodyScroll}
+        contentContainerStyle={[styles.body, !isWide && styles.bodyNarrow]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.previewCol, !isWide && styles.previewColNarrow]}>
           {thumbUri ? (
             <Image source={{ uri: thumbUri }} style={styles.preview} resizeMode="cover" />
           ) : (
@@ -167,18 +188,37 @@ export default function ImportScreen() {
           <Text style={styles.fileMeta}>{formatSize(asset.fileSize) || "Local file"}</Text>
         </View>
 
-        <View style={styles.formCol}>
-          <TagEditor tags={importTags} onChange={setImportTags} allTags={allTags(clips)} tagCounts={tagCounts(clips)} />
-
-          <View style={styles.footer}>
-            <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
-            <Pressable style={styles.cancelButton} onPress={() => router.replace(backTo)}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>{slot ? `Replace ${slotName(slot, session.top)}` : "Add to library"}</Text>
-            </Pressable>
+        <View style={[styles.formCol, !isWide && styles.formColNarrow]}>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Name</Text>
+            <TextInput
+              style={styles.nameInput}
+              value={titleInput}
+              onChangeText={setTitleInput}
+              placeholder="Clip name"
+              placeholderTextColor={color.textFaint}
+              autoComplete="off"
+              autoCorrect={false}
+              spellCheck={false}
+              importantForAutofill="no"
+              returnKeyType="done"
+            />
           </View>
+          <TagEditor tags={importTags} onChange={setImportTags} allTags={allTags(clips)} tagCounts={tagCounts(clips)} />
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, !isWide && styles.footerNarrow]}>
+        <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
+        <View style={[styles.footerButtons, !isWide && styles.footerButtonsNarrow]}>
+          <Pressable style={styles.cancelButton} onPress={() => router.replace(backTo)}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              {slot ? `Replace ${slotName(slot, session.top)}` : "Add to library"}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -208,15 +248,42 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: "500", color: color.text },
   headerSubtitle: { fontSize: 11, color: color.textFaint },
-  body: { flex: 1, flexDirection: "row", gap: space[4], padding: 14 },
+  bodyScroll: { flex: 1 },
+  body: { flexDirection: "row", gap: space[4], padding: 14 },
+  bodyNarrow: { flexDirection: "column" },
   previewCol: { width: 220, gap: space[2] },
+  previewColNarrow: { width: "100%" },
   preview: { width: "100%", height: 150, borderRadius: radius.md },
   previewPlaceholder: { backgroundColor: color.neutral900, alignItems: "center", justifyContent: "center" },
   fileName: { fontSize: 12, color: color.text },
   fileMeta: { fontSize: 11, color: color.textFaint },
-  formCol: { flex: 1, minWidth: 0, gap: space[2] },
-  footer: { marginTop: "auto", flexDirection: "row", alignItems: "center", gap: space[3] },
+  formCol: { flex: 1, minWidth: 0, gap: space[3] },
+  formColNarrow: { flex: undefined },
+  field: { gap: 5 },
+  fieldLabel: { fontSize: 12, color: withAlpha(color.text, 0.7) },
+  nameInput: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.divider,
+    backgroundColor: color.surface,
+    color: color.text,
+    fontSize: 13,
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: color.divider,
+  },
+  footerNarrow: { flexDirection: "column", alignItems: "stretch", gap: space[2] },
   footerHint: { flex: 1, fontSize: 11, color: color.textFaint },
+  footerButtons: { flexDirection: "row", gap: space[3] },
+  footerButtonsNarrow: { justifyContent: "flex-end" },
   cancelButton: {
     borderWidth: 1,
     borderColor: color.divider,

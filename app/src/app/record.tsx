@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -11,12 +21,17 @@ import { persistRecording } from "@/data/recordings";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useThumbnail } from "@/hooks/useThumbnail";
 import { useFreeOrientation } from "@/hooks/useFreeOrientation";
+import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { TagEditor } from "@/components/shared/TagEditor";
 import { slotName } from "@/lib/format";
 import type { Clip, Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type Phase = "ready" | "recording" | "review" | "tagging";
+
+// Below this width (portrait phones) the fixed-width preview column leaves
+// too little room for the tag form beside it — stack them instead.
+const WIDE_LAYOUT_MIN_WIDTH = 500;
 
 // Android's video encoder doesn't reliably tag a recording's rotation while
 // the screen orientation is left free (OrientationLock.ALL): it needs a
@@ -43,6 +58,8 @@ export default function RecordScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isWide = width >= WIDE_LAYOUT_MIN_WIDTH;
   const session = usePlaybackSession();
   const { clips, addClip } = useClipLibrary();
 
@@ -60,6 +77,7 @@ export default function RecordScreen() {
   const granted = !!permission?.granted && !!micPermission?.granted;
 
   useFreeOrientation();
+  useImmersiveNavBar();
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
@@ -67,7 +85,7 @@ export default function RecordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const backOut = () => router.replace(slot ? "/" : "/library");
+  const backOut = () => router.replace(slot ? "/playback" : "/");
 
   const startRecording = async () => {
     if (!cameraRef.current) return;
@@ -114,7 +132,7 @@ export default function RecordScreen() {
     };
     addClip(newClip);
     session.loadClip(targetSlot, newClip, { keepFraming: true });
-    router.replace("/");
+    router.replace("/playback");
   };
 
   // Add-new mode (no slot param): there's no existing clip to inherit tags
@@ -131,12 +149,13 @@ export default function RecordScreen() {
       createdAt: Date.now(),
       durationSec,
     });
-    router.replace("/library");
+    router.replace("/");
   };
 
   if (!permission || !micPermission) {
     return (
       <View style={[styles.screen, styles.centered]}>
+        <StatusBar hidden />
         <ActivityIndicator color={color.accent} />
       </View>
     );
@@ -150,6 +169,7 @@ export default function RecordScreen() {
     };
     return (
       <View style={[styles.screen, styles.centered, { gap: space[3], paddingHorizontal: 40 }]}>
+        <StatusBar hidden />
         <Ionicons name="videocam-off-outline" size={34} color={color.neutral600} />
         <Text style={styles.promptTitle}>Camera & microphone access needed</Text>
         <Text style={styles.promptBody}>
@@ -174,14 +194,19 @@ export default function RecordScreen() {
   if (phase === "tagging") {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <StatusBar hidden />
         <View style={styles.header}>
           <Pressable style={styles.iconButton} onPress={() => setPhase("review")}>
             <Ionicons name="arrow-back" size={16} color={color.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Tag this clip</Text>
         </View>
-        <View style={styles.body}>
-          <View style={styles.previewCol}>
+        <ScrollView
+          style={styles.bodyScroll}
+          contentContainerStyle={[styles.body, !isWide && styles.bodyNarrow]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.previewCol, !isWide && styles.previewColNarrow]}>
             {takeThumb ? (
               <Image source={{ uri: takeThumb }} style={styles.preview} resizeMode="cover" />
             ) : (
@@ -191,22 +216,25 @@ export default function RecordScreen() {
             )}
             <Text style={styles.fileMeta}>{durationSec.toFixed(1)}s recording</Text>
           </View>
-          <View style={styles.formCol}>
+          <View style={[styles.formCol, !isWide && styles.formColNarrow]}>
             <TagEditor
               tags={newClipTags}
               onChange={setNewClipTags}
               allTags={allTags(clips)}
               tagCounts={tagCounts(clips)}
             />
-            <View style={styles.footer}>
-              <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
-              <Pressable style={styles.secondaryButton} onPress={() => setPhase("review")}>
-                <Text style={styles.secondaryButtonText}>Back</Text>
-              </Pressable>
-              <Pressable style={styles.primaryButton} onPress={saveNewClip}>
-                <Text style={styles.primaryButtonText}>Add to library</Text>
-              </Pressable>
-            </View>
+          </View>
+        </ScrollView>
+
+        <View style={[styles.footer, !isWide && styles.footerNarrow]}>
+          <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
+          <View style={[styles.footerButtons, !isWide && styles.footerButtonsNarrow]}>
+            <Pressable style={styles.secondaryButton} onPress={() => setPhase("review")}>
+              <Text style={styles.secondaryButtonText}>Back</Text>
+            </Pressable>
+            <Pressable style={styles.primaryButton} onPress={saveNewClip}>
+              <Text style={styles.primaryButtonText}>Add to library</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -216,6 +244,7 @@ export default function RecordScreen() {
   if (phase === "review") {
     return (
       <View style={styles.screen}>
+        <StatusBar hidden />
         {takeThumb ? (
           <Image source={{ uri: takeThumb }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
@@ -246,6 +275,7 @@ export default function RecordScreen() {
 
   return (
     <View style={styles.screen}>
+      <StatusBar hidden />
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} mode="video" facing="back" />
       <View style={styles.framingGuide} pointerEvents="none" />
 
@@ -384,14 +414,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: { fontSize: 17, fontWeight: "500", color: color.text },
-  body: { flex: 1, flexDirection: "row", gap: space[4], padding: 14, backgroundColor: color.bg },
+  bodyScroll: { flex: 1, backgroundColor: color.bg },
+  body: { flexDirection: "row", gap: space[4], padding: 14 },
+  bodyNarrow: { flexDirection: "column" },
   previewCol: { width: 220, gap: space[2] },
+  previewColNarrow: { width: "100%" },
   preview: { width: "100%", height: 150, borderRadius: radius.md },
   previewPlaceholder: { backgroundColor: color.neutral900, alignItems: "center", justifyContent: "center" },
   fileMeta: { fontSize: 11, color: color.textFaint },
   formCol: { flex: 1, minWidth: 0, gap: space[2] },
-  footer: { marginTop: "auto", flexDirection: "row", alignItems: "center", gap: space[3] },
+  formColNarrow: { flex: undefined },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: color.divider,
+    backgroundColor: color.bg,
+  },
+  footerNarrow: { flexDirection: "column", alignItems: "stretch", gap: space[2] },
   footerHint: { flex: 1, fontSize: 11, color: color.textFaint },
+  footerButtons: { flexDirection: "row", gap: space[3] },
+  footerButtonsNarrow: { justifyContent: "flex-end" },
   secondaryButton: {
     borderWidth: 1,
     borderColor: color.divider,
