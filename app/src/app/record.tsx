@@ -15,11 +15,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import { VideoView } from "expo-video";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { persistRecording } from "@/data/recordings";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useThumbnail } from "@/hooks/useThumbnail";
+import { useSlotPlayer } from "@/hooks/useSlotPlayer";
 import { usePortraitLock } from "@/hooks/usePortraitLock";
 import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { TagEditor } from "@/components/shared/TagEditor";
@@ -54,7 +56,17 @@ export default function RecordScreen() {
   const [newClipTags, setNewClipTags] = useState<string[]>([]);
 
   const takeThumb = useThumbnail(takeUri);
+  const takePlayer = useSlotPlayer(takeUri, { muted: false, loop: true });
   const granted = !!permission?.granted && !!micPermission?.granted;
+
+  // Autoplay the take on loop while the "use this take?" sheet is up so the
+  // rider can watch it back without an extra tap — pause it the moment the
+  // review sheet isn't the thing on screen (retake, tagging, or a fresh
+  // recording) so it isn't still playing silently underneath.
+  useEffect(() => {
+    if (phase === "review") takePlayer.play();
+    else takePlayer.pause();
+  }, [phase, takePlayer, takeUri]);
 
   // Locked portrait for the whole flow, not just while composing: Android's
   // video encoder doesn't reliably tag a recording's rotation across an
@@ -247,11 +259,13 @@ export default function RecordScreen() {
     return (
       <View style={styles.screen}>
         <StatusBar hidden />
-        {takeThumb ? (
-          <Image source={{ uri: takeThumb }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, styles.previewPlaceholder]} />
-        )}
+        <VideoView
+          player={takePlayer}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          nativeControls={false}
+          surfaceType="textureView"
+        />
         <View style={[styles.reviewSheetWrap, { paddingBottom: insets.bottom + 14 }]}>
           <View style={styles.reviewSheet}>
             <Text style={styles.reviewText}>Take of {durationSec.toFixed(1)}s — use it?</Text>

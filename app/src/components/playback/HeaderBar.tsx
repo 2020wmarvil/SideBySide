@@ -3,6 +3,10 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
+// Tries history is built but paused until further notice — flip this back
+// on to restore the header button without touching any other wiring.
+const TRIES_HISTORY_ENABLED = false;
+
 type HeaderBarProps = {
   nameL: string;
   nameR: string;
@@ -70,10 +74,12 @@ export function HeaderBar({
 
       <View style={styles.spacer} />
 
-      <Pressable style={styles.triesButton} onPress={onTries}>
-        <Ionicons name="time-outline" size={14} color={color.text} />
-        <Text style={styles.triesText}>Tries</Text>
-      </Pressable>
+      {TRIES_HISTORY_ENABLED && (
+        <Pressable style={styles.triesButton} onPress={onTries}>
+          <Ionicons name="time-outline" size={14} color={color.text} />
+          <Text style={styles.triesText}>Tries</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
