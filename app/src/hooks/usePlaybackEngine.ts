@@ -15,6 +15,18 @@ type Session = ReturnType<typeof usePlaybackSession>;
 
 const SLOTS: Slot[] = ["L", "R"];
 
+// How far L and R are allowed to quietly drift apart, in seconds, before
+// the tick loop nudges the lagging one back up to match — independent
+// decode timing means they never drift in lockstep on their own.
+const DRIFT_TOLERANCE = 0.08;
+
+// Even a "loose tolerance" corrective seek makes the decoder do work, so
+// checking for drift every 70ms tick but only ever *acting* on it this
+// rarely keeps corrections from becoming a steady drip of tiny stutters —
+// this is meant to stop drift from growing into something visible over a
+// whole clip, not to hold L/R pinned to each other frame-by-frame.
+const DRIFT_CORRECTION_INTERVAL_MS = 1000;
+
 /**
  * Owns the two video players and drives them against the session's
  * per-slot trim windows: loops playback within [in, out) (or the shorter
@@ -32,6 +44,7 @@ export function usePlaybackEngine(session: Session) {
   const [pos, setPos] = useState<Record<Slot, number>>({ L: 0, R: 0 });
   const [toast, setToast] = useState("");
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDriftCorrection = useRef(0);
 
   const playerFor = useCallback((slot: Slot) => (slot === "L" ? playerL : playerR), [playerL, playerR]);
   const durationFor = useCallback((slot: Slot) => (slot === "L" ? durationL : durationR), [durationL, durationR]);
@@ -110,6 +123,37 @@ export function usePlaybackEngine(session: Session) {
         // over many loops — resetting both in lockstep is the fix.
         const resetAll = session.locked && needsLoop;
 
+        // Mid-window drift correction: a loop-boundary reset re-syncs both
+        // sides, but between boundaries nothing else keeps them together —
+        // L and R can quietly fall out of step tick by tick. Catch that
+        // early, every tick, rather than waiting for it to surface (e.g.
+        // when an overlay swap reveals it, or it simply grows large enough
+        // to notice). Skipped when a reset is already happening this tick,
+        // since that snaps both back to their window start together anyway.
+        let driftTarget: Partial<Record<Slot, number>> = {};
+        if (
+          !resetAll &&
+          session.locked &&
+          playing &&
+          info.L &&
+          info.R &&
+          Date.now() - lastDriftCorrection.current > DRIFT_CORRECTION_INTERVAL_MS
+        ) {
+          const elapsedL = info.L.t - info.L.start;
+          const elapsedR = info.R.t - info.R.start;
+          const diff = elapsedL - elapsedR;
+          if (Math.abs(diff) > DRIFT_TOLERANCE) {
+            // bring the lagging side forward to match the leading side,
+            // rather than the other way round — jumping a laggard forward
+            // reads as it catching up; pulling the leader backward would
+            // read as a rewind.
+            const laggingSlot: Slot = diff > 0 ? "R" : "L";
+            const entry = info[laggingSlot]!;
+            driftTarget[laggingSlot] = entry.start + Math.min(Math.max(elapsedL, elapsedR), entry.len);
+            lastDriftCorrection.current = Date.now();
+          }
+        }
+
         SLOTS.forEach((s) => {
           const entry = info[s];
           if (!entry) return;
@@ -125,6 +169,12 @@ export function usePlaybackEngine(session: Session) {
             // lets L/R drift). A loose tolerance lets the player snap to a
             // nearby keyframe instead, so restore it to exact right after
             // for the next user-driven seek/step.
+            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0.3 };
+            player.currentTime = t;
+            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0 };
+          } else if (driftTarget[s] !== undefined) {
+            const player = playerFor(s);
+            t = driftTarget[s]!;
             player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0.3 };
             player.currentTime = t;
             player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0 };
