@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { persistRecording } from "@/data/recordings";
@@ -16,6 +17,27 @@ import type { Clip, Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type Phase = "ready" | "recording" | "review" | "tagging";
+
+// Android's video encoder doesn't reliably tag a recording's rotation while
+// the screen orientation is left free (OrientationLock.ALL): it needs a
+// single definitive orientation at the moment recording starts, or the
+// clip comes out rotated regardless of which way the device was actually
+// held. Locking to the device's current orientation for the duration of
+// the take (like a native camera app, where only the preview keeps
+// rotating) works around this; the lock is freed back to ALL once the
+// take is done so the review controls can rotate again.
+const orientationLockFor: Partial<Record<ScreenOrientation.Orientation, ScreenOrientation.OrientationLock>> = {
+  [ScreenOrientation.Orientation.PORTRAIT_UP]: ScreenOrientation.OrientationLock.PORTRAIT_UP,
+  [ScreenOrientation.Orientation.PORTRAIT_DOWN]: ScreenOrientation.OrientationLock.PORTRAIT_DOWN,
+  [ScreenOrientation.Orientation.LANDSCAPE_LEFT]: ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
+  [ScreenOrientation.Orientation.LANDSCAPE_RIGHT]: ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
+};
+
+async function lockToCurrentOrientation() {
+  const current = await ScreenOrientation.getOrientationAsync();
+  const lock = orientationLockFor[current] ?? ScreenOrientation.OrientationLock.PORTRAIT_UP;
+  await ScreenOrientation.lockAsync(lock);
+}
 
 export default function RecordScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
@@ -49,11 +71,13 @@ export default function RecordScreen() {
 
   const startRecording = async () => {
     if (!cameraRef.current) return;
+    await lockToCurrentOrientation();
     setPhase("recording");
     setElapsedTenths(0);
     timerRef.current = setInterval(() => setElapsedTenths((n) => n + 1), 100);
     const result = await cameraRef.current.recordAsync();
     if (timerRef.current) clearInterval(timerRef.current);
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(() => {});
     if (result?.uri) {
       setTakeUri(result.uri);
       setPhase("review");
