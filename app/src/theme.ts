@@ -9,6 +9,7 @@ export const color = {
   divider: "rgba(233,233,237,0.16)",
   accent: "#9184d9",
   accent2: "#a7a1db",
+  danger: "#e5484d",
 
   neutral100: "#f3f5fe",
   neutral300: "#cfd3e5",

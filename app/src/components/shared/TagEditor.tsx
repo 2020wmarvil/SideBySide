@@ -39,6 +39,11 @@ export function TagEditor({ tags, onChange, allTags, tagCounts }: TagEditorProps
           onChangeText={setTagInput}
           onSubmitEditing={() => addTag(tagInput)}
           returnKeyType="done"
+          autoCapitalize="none"
+          autoComplete="off"
+          autoCorrect={false}
+          spellCheck={false}
+          importantForAutofill="no"
         />
       </View>
 

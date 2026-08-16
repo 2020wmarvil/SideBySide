@@ -12,14 +12,18 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, filterClips } from "@/data/clipRepository";
+import { useFreeOrientation } from "@/hooks/useFreeOrientation";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { ClipCard } from "@/components/library/ClipCard";
+import { SelectionToolbar } from "@/components/library/SelectionToolbar";
 import { TagChip } from "@/components/library/TagChip";
-import type { Slot } from "@/data/types";
+import { TagEditor } from "@/components/shared/TagEditor";
+import { slotName } from "@/lib/format";
+import type { Clip, Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
 // Below this width (portrait phones) the persistent sidebar doesn't fit —
@@ -27,15 +31,22 @@ import { color, radius, space, withAlpha } from "@/theme";
 const WIDE_LAYOUT_MIN_WIDTH = 500;
 
 export default function LibraryScreen() {
+  useFreeOrientation();
+  const { slot: replaceSlot } = useLocalSearchParams<{ slot?: Slot }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { clips, loading } = useClipLibrary();
+  const { clips, loading, removeClip, updateClip } = useClipLibrary();
   const session = usePlaybackSession();
 
   const [search, setSearch] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [pickId, setPickId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameText, setRenameText] = useState("");
+  const [editingTags, setEditingTags] = useState(false);
 
   const isWide = width >= WIDE_LAYOUT_MIN_WIDTH;
   const hasClips = clips.length > 0;
@@ -43,17 +54,72 @@ export default function LibraryScreen() {
   const tagList = allTags(clips);
   const libTitle = tags.length ? tags.join(" + ") : "All clips";
   const pickedClip = clips.find((c) => c.id === pickId) ?? null;
+  const selectionMode = selectedIds.size > 0;
+  const selectedClips = clips.filter((c) => selectedIds.has(c.id));
+  const commonTags = selectedClips.length
+    ? selectedClips[0].tags.filter((t) => selectedClips.every((c) => c.tags.includes(t)))
+    : [];
 
   const toggleTag = (t: string) =>
     setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
-  const handleLoad = (slot: Slot) => {
-    if (!pickedClip) return;
-    session.loadClip(slot, pickedClip);
+  const handleLoad = (slot: Slot, clip?: Clip) => {
+    const target = clip ?? pickedClip;
+    if (!target) return;
+    session.loadClip(slot, target);
     session.setSel(slot);
     if (session.locked) session.toggleLock();
     setPickId(null);
     router.push("/");
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleCardPress = (clip: Clip) => {
+    if (replaceSlot) {
+      handleLoad(replaceSlot, clip);
+      return;
+    }
+    if (selectionMode) toggleSelect(clip.id);
+    else setPickId(clip.id);
+  };
+
+  const handleDeleteSelected = async () => {
+    for (const id of selectedIds) await removeClip(id);
+    clearSelection();
+    setConfirmingDelete(false);
+  };
+
+  const openRename = () => {
+    if (selectedClips.length !== 1) return;
+    setRenameText(selectedClips[0].title);
+    setRenaming(true);
+  };
+
+  const saveRename = async () => {
+    if (selectedClips.length !== 1) return;
+    const t = renameText.trim();
+    if (t) await updateClip(selectedClips[0].id, { title: t });
+    setRenaming(false);
+  };
+
+  const applyTagChange = (next: string[]) => {
+    const added = next.filter((t) => !commonTags.includes(t));
+    const removed = commonTags.filter((t) => !next.includes(t));
+    for (const c of selectedClips) {
+      let nextTags = c.tags;
+      for (const t of added) if (!nextTags.includes(t)) nextTags = [...nextTags, t];
+      for (const t of removed) nextTags = nextTags.filter((x) => x !== t);
+      if (nextTags !== c.tags) updateClip(c.id, { tags: nextTags });
+    }
   };
 
   if (loading) {
@@ -68,8 +134,13 @@ export default function LibraryScreen() {
     <TagChip key={t} label={t} active={tags.includes(t)} onPress={() => toggleTag(t)} />
   ));
 
+  const goToImport = () =>
+    router.push(replaceSlot ? { pathname: "/import", params: { slot: replaceSlot } } : "/import");
+
+  const replaceHint = replaceSlot ? `Pick a replacement for ${slotName(replaceSlot, session.top)}` : null;
+
   const grid = !hasClips ? (
-    <EmptyState onImport={() => router.push("/import")} onRecord={() => router.push("/record")} />
+    <EmptyState onImport={goToImport} />
   ) : visible.length === 0 ? (
     <View style={[styles.centered, { flex: 1 }]}>
       <Text style={styles.noMatchesText}>No clips match this search.</Text>
@@ -81,7 +152,25 @@ export default function LibraryScreen() {
       keyExtractor={(c) => c.id}
       columnWrapperStyle={styles.gridRow}
       contentContainerStyle={styles.gridContent}
-      renderItem={({ item }) => <ClipCard clip={item} onPress={() => setPickId(item.id)} />}
+      renderItem={({ item }) => (
+        <ClipCard
+          clip={item}
+          onPress={() => handleCardPress(item)}
+          onLongPress={() => !replaceSlot && toggleSelect(item.id)}
+          selected={selectedIds.has(item.id)}
+          selectionMode={selectionMode}
+        />
+      )}
+    />
+  );
+
+  const toolbar = (
+    <SelectionToolbar
+      count={selectedIds.size}
+      onCancel={clearSelection}
+      onRename={selectedIds.size === 1 ? openRename : undefined}
+      onEditTags={() => setEditingTags(true)}
+      onDelete={() => setConfirmingDelete(true)}
     />
   );
 
@@ -102,29 +191,35 @@ export default function LibraryScreen() {
                 placeholderTextColor={color.textFaint}
                 value={search}
                 onChangeText={setSearch}
+                autoComplete="off"
+                autoCorrect={false}
+                spellCheck={false}
+                importantForAutofill="no"
               />
             )}
 
             {hasClips && <Text style={styles.tagsLabel}>Tags</Text>}
             <View style={styles.tagCloud}>{tagChips}</View>
 
-            <Pressable style={styles.importButton} onPress={() => router.push("/import")}>
+            <Pressable style={styles.importButton} onPress={goToImport}>
               <Ionicons name="add" size={14} color={color.accent} />
               <Text style={styles.importButtonText}>Import clip</Text>
             </Pressable>
           </View>
 
           <View style={styles.main}>
-            <View style={styles.mainHeader}>
-              <Text style={styles.libTitleText}>{libTitle}</Text>
-              <Text style={styles.libCount}>
-                {visible.length} clip{visible.length === 1 ? "" : "s"}
-              </Text>
-              <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
-                <Ionicons name="videocam-outline" size={14} color={color.text} />
-                <Text style={styles.recordButtonText}>Record</Text>
-              </Pressable>
-            </View>
+            {selectionMode ? (
+              toolbar
+            ) : (
+              <View style={styles.mainHeader}>
+                <Text style={styles.libTitleText}>{replaceHint ?? libTitle}</Text>
+                {!replaceHint && (
+                  <Text style={styles.libCount}>
+                    {visible.length} clip{visible.length === 1 ? "" : "s"}
+                  </Text>
+                )}
+              </View>
+            )}
             {grid}
           </View>
         </>
@@ -136,11 +231,8 @@ export default function LibraryScreen() {
               <Text style={styles.brandText}>Side By Side</Text>
             </View>
             <View style={styles.narrowHeaderActions}>
-              <Pressable style={styles.narrowIconButton} onPress={() => router.push("/import")}>
+              <Pressable style={styles.narrowIconButton} onPress={goToImport}>
                 <Ionicons name="add" size={16} color={color.accent} />
-              </Pressable>
-              <Pressable style={styles.narrowIconButton} onPress={() => router.push("/record")}>
-                <Ionicons name="videocam-outline" size={16} color={color.text} />
               </Pressable>
             </View>
           </View>
@@ -153,6 +245,10 @@ export default function LibraryScreen() {
                 placeholderTextColor={color.textFaint}
                 value={search}
                 onChangeText={setSearch}
+                autoComplete="off"
+                autoCorrect={false}
+                spellCheck={false}
+                importantForAutofill="no"
               />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagRowNarrow}>
                 {tagChips}
@@ -160,12 +256,18 @@ export default function LibraryScreen() {
             </View>
           )}
 
-          <View style={styles.narrowMainHeader}>
-            <Text style={styles.libTitleText}>{libTitle}</Text>
-            <Text style={styles.libCount}>
-              {visible.length} clip{visible.length === 1 ? "" : "s"}
-            </Text>
-          </View>
+          {selectionMode ? (
+            toolbar
+          ) : (
+            <View style={styles.narrowMainHeader}>
+              <Text style={styles.libTitleText}>{replaceHint ?? libTitle}</Text>
+              {!replaceHint && (
+                <Text style={styles.libCount}>
+                  {visible.length} clip{visible.length === 1 ? "" : "s"}
+                </Text>
+              )}
+            </View>
+          )}
           <View style={styles.main}>{grid}</View>
         </>
       )}
@@ -194,29 +296,83 @@ export default function LibraryScreen() {
           )}
         </Pressable>
       </Modal>
+
+      <Modal visible={renaming} transparent animationType="fade" onRequestClose={() => setRenaming(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>
+          <Pressable style={styles.pickSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.pickTitle}>Rename clip</Text>
+            <TextInput
+              style={styles.search}
+              value={renameText}
+              onChangeText={setRenameText}
+              autoFocus
+              autoCorrect={false}
+              spellCheck={false}
+              importantForAutofill="no"
+              returnKeyType="done"
+              onSubmitEditing={saveRename}
+            />
+            <View style={styles.pickActions}>
+              <Pressable style={styles.pickButton} onPress={() => setRenaming(false)}>
+                <Text style={styles.pickButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.pickButton} onPress={saveRename}>
+                <Text style={styles.pickButtonText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={editingTags} transparent animationType="fade" onRequestClose={() => setEditingTags(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setEditingTags(false)}>
+          <Pressable style={styles.pickSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.pickTitle}>
+              Edit tags · {selectedIds.size} clip{selectedIds.size === 1 ? "" : "s"}
+            </Text>
+            <TagEditor tags={commonTags} onChange={applyTagChange} allTags={tagList} tagCounts={{}} />
+            <Pressable style={styles.pickButton} onPress={() => setEditingTags(false)}>
+              <Text style={styles.pickButtonText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={confirmingDelete} transparent animationType="fade" onRequestClose={() => setConfirmingDelete(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setConfirmingDelete(false)}>
+          <Pressable style={styles.pickSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.pickTitle}>
+              Delete {selectedIds.size} clip{selectedIds.size === 1 ? "" : "s"}?
+            </Text>
+            <Text style={styles.pickMeta}>This can&apos;t be undone.</Text>
+            <View style={styles.pickActions}>
+              <Pressable style={styles.pickButton} onPress={() => setConfirmingDelete(false)}>
+                <Text style={styles.pickButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.pickButton, styles.deleteConfirmButton]} onPress={handleDeleteSelected}>
+                <Text style={[styles.pickButtonText, styles.deleteConfirmText]}>Delete</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function EmptyState({ onImport, onRecord }: { onImport: () => void; onRecord: () => void }) {
+function EmptyState({ onImport }: { onImport: () => void }) {
   return (
     <View style={[styles.centered, { flex: 1, gap: space[3], paddingHorizontal: 40 }]}>
       <Ionicons name="film-outline" size={34} color={color.neutral600} />
       <Text style={styles.emptyTitle}>Nothing in the library yet</Text>
       <Text style={styles.emptyBody}>
-        Import a clip from your phone or record a first attempt. Tag it on the way in — that&apos;s how
+        Import a clip from your phone, or record one on the way in. Tag it as you go — that&apos;s how
         you&apos;ll find it later.
       </Text>
-      <View style={{ flexDirection: "row", gap: space[3], marginTop: 2 }}>
-        <Pressable style={styles.emptyButtonPrimary} onPress={onImport}>
-          <Ionicons name="folder-open-outline" size={14} color={color.accent} />
-          <Text style={styles.emptyButtonPrimaryText}>Import from device</Text>
-        </Pressable>
-        <Pressable style={styles.emptyButtonSecondary} onPress={onRecord}>
-          <Ionicons name="videocam-outline" size={14} color={color.text} />
-          <Text style={styles.emptyButtonSecondaryText}>Record now</Text>
-        </Pressable>
-      </View>
+      <Pressable style={[styles.emptyButtonPrimary, { marginTop: 2 }]} onPress={onImport}>
+        <Ionicons name="folder-open-outline" size={14} color={color.accent} />
+        <Text style={styles.emptyButtonPrimaryText}>Import a clip</Text>
+      </Pressable>
     </View>
   );
 }
@@ -296,18 +452,6 @@ const styles = StyleSheet.create({
   },
   libTitleText: { fontSize: 17, fontWeight: "500", color: color.text },
   libCount: { fontSize: 11, color: color.textFaint },
-  recordButton: {
-    marginLeft: "auto",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: color.divider,
-    borderRadius: radius.md,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  recordButtonText: { fontSize: 12, color: color.text },
   gridContent: { padding: 14, gap: 10 },
   gridRow: { gap: 10 },
   noMatchesText: { fontSize: 12, color: color.textMuted },
@@ -324,17 +468,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   emptyButtonPrimaryText: { fontSize: 12, color: color.accent },
-  emptyButtonSecondary: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: color.divider,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  emptyButtonSecondaryText: { fontSize: 12, color: color.text },
   backdrop: {
     flex: 1,
     alignItems: "center",
@@ -360,4 +493,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   pickButtonText: { fontSize: 12, color: color.accent },
+  deleteConfirmButton: { borderColor: color.danger },
+  deleteConfirmText: { color: color.danger },
 });

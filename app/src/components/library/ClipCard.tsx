@@ -5,12 +5,24 @@ import { useThumbnail } from "@/hooks/useThumbnail";
 import { formatDate, formatDuration } from "@/lib/format";
 import { color, radius, elevation, withAlpha } from "@/theme";
 
-export function ClipCard({ clip, onPress }: { clip: Clip; onPress: () => void }) {
+type ClipCardProps = {
+  clip: Clip;
+  onPress: () => void;
+  onLongPress?: () => void;
+  selected?: boolean;
+  selectionMode?: boolean;
+};
+
+export function ClipCard({ clip, onPress, onLongPress, selected, selectionMode }: ClipCardProps) {
   const thumbUri = useThumbnail(clip.uri);
   const duration = formatDuration(clip.durationSec);
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable
+      style={[styles.card, selected && styles.cardSelected]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+    >
       <View style={styles.thumbWrap}>
         {thumbUri ? (
           <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMode="cover" />
@@ -22,6 +34,11 @@ export function ClipCard({ clip, onPress }: { clip: Clip; onPress: () => void })
         {duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>{duration}</Text>
+          </View>
+        )}
+        {selectionMode && (
+          <View style={[styles.selectBadge, selected && styles.selectBadgeOn]}>
+            {selected && <Ionicons name="checkmark" size={11} color={color.bg} />}
           </View>
         )}
       </View>
@@ -51,8 +68,25 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     overflow: "hidden",
     elevation: elevation.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
+  cardSelected: { borderColor: color.accent },
   thumbWrap: { position: "relative" },
+  selectBadge: {
+    position: "absolute",
+    left: 5,
+    top: 5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: color.text,
+    backgroundColor: withAlpha(color.stageBg, 0.55),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectBadgeOn: { backgroundColor: color.accent, borderColor: color.accent },
   thumb: { width: "100%", height: 74 },
   thumbPlaceholder: {
     backgroundColor: color.neutral900,

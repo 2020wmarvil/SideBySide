@@ -9,15 +9,13 @@ import { allTags, tagCounts } from "@/data/clipRepository";
 import { persistRecording } from "@/data/recordings";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useThumbnail } from "@/hooks/useThumbnail";
+import { useFreeOrientation } from "@/hooks/useFreeOrientation";
 import { TagEditor } from "@/components/shared/TagEditor";
+import { slotName } from "@/lib/format";
 import type { Clip, Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type Phase = "ready" | "recording" | "review" | "tagging";
-
-function slotName(slot: Slot): string {
-  return slot === "L" ? "left slot" : "right slot";
-}
 
 export default function RecordScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
@@ -38,6 +36,8 @@ export default function RecordScreen() {
 
   const takeThumb = useThumbnail(takeUri);
   const granted = !!permission?.granted && !!micPermission?.granted;
+
+  useFreeOrientation();
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
@@ -206,7 +206,7 @@ export default function RecordScreen() {
               </Pressable>
               {slot ? (
                 <Pressable style={styles.primaryButton} onPress={() => applyTakeToSlot(slot)}>
-                  <Text style={styles.primaryButtonText}>Replace {slotName(slot)}</Text>
+                  <Text style={styles.primaryButtonText}>Replace {slotName(slot, session.top)}</Text>
                 </Pressable>
               ) : (
                 <Pressable style={styles.primaryButton} onPress={() => setPhase("tagging")}>
@@ -232,9 +232,6 @@ export default function RecordScreen() {
             <Text style={styles.recText}>{durationSec.toFixed(1)}s</Text>
           </View>
         )}
-        <Text style={styles.topBarSubtitle}>
-          {slot ? `Replacing ${slotName(slot)}` : "New clip"} · device default settings
-        </Text>
       </View>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 14 }]}>
@@ -292,15 +289,6 @@ const styles = StyleSheet.create({
   },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.accent },
   recText: { fontSize: 12, color: color.text, fontVariant: ["tabular-nums"] },
-  topBarSubtitle: {
-    marginLeft: "auto",
-    fontSize: 11,
-    color: color.neutral300,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 20,
-    backgroundColor: withAlpha(color.stageBg, 0.7),
-  },
   bottomBar: {
     position: "absolute",
     left: 0,

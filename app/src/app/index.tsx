@@ -150,7 +150,7 @@ export default function PlaybackScreen() {
 
   const handleReplace = (slot: Slot) => {
     if (session.locked) return;
-    router.push({ pathname: "/record", params: { slot } });
+    router.push({ pathname: "/import", params: { slot } });
   };
 
   const handleMirror = (slot: Slot) => {
