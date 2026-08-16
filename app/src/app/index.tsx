@@ -255,9 +255,7 @@ export default function PlaybackScreen() {
             nameR={session.clips.R.title}
             sel={session.sel}
             locked={session.locked}
-            display={session.display}
             onReplace={handleReplace}
-            onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}
           />
@@ -285,6 +283,7 @@ export default function PlaybackScreen() {
             tracks={tracks}
             playing={playing}
             speed={activeClip.speed}
+            display={session.display}
             overlayMode={session.display === "overlay"}
             opacity={session.opacity}
             opacityText={`${Math.round(session.opacity * 100)}%`}
@@ -293,6 +292,7 @@ export default function PlaybackScreen() {
             onPlay={togglePlay}
             onStep={step}
             onSpeedChange={setSpeed}
+            onSetDisplay={session.setDisplay}
             onOpacityChange={session.setOpacity}
             onSwap={session.swapTop}
             onSwapSlots={session.swapSlots}

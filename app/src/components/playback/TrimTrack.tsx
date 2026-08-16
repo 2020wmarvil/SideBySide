@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/refs -- see Stage.tsx */
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View, type DimensionValue, type LayoutChangeEvent } from "react-native";
+import { Pressable, StyleSheet, Text, View, type DimensionValue, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { color, radius, withAlpha } from "@/theme";
@@ -115,6 +115,16 @@ export function TrimTrack({
       <Text style={[styles.label, { color: labelColor }]} numberOfLines={1}>
         {label}
       </Text>
+      {editable && (
+        <Pressable
+          style={styles.snapButton}
+          onPress={() => onSetIn?.(playheadFrac)}
+          hitSlop={8}
+          accessibilityLabel="Snap start to playhead"
+        >
+          <Text style={styles.snapButtonText}>{">"}</Text>
+        </Pressable>
+      )}
       <GestureDetector gesture={gesture}>
         <View style={styles.track} onLayout={onTrackLayout}>
           <View
@@ -128,6 +138,16 @@ export function TrimTrack({
           <Animated.View style={[styles.playhead, playheadStyle]} />
         </View>
       </GestureDetector>
+      {editable && (
+        <Pressable
+          style={styles.snapButton}
+          onPress={() => onSetOut?.(playheadFrac)}
+          hitSlop={8}
+          accessibilityLabel="Snap end to playhead"
+        >
+          <Text style={styles.snapButtonText}>{"<"}</Text>
+        </Pressable>
+      )}
       <Text style={styles.time} numberOfLines={1}>
         {timeText}
       </Text>
@@ -170,6 +190,21 @@ const styles = StyleSheet.create({
     width: 14,
     borderRadius: radius.sm,
     backgroundColor: color.accent,
+  },
+  snapButton: {
+    width: 28,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: withAlpha(color.accent, 0.5),
+  },
+  snapButtonText: {
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: color.accent,
   },
   playhead: {
     position: "absolute",

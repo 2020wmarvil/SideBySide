@@ -60,7 +60,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   });
   const [locked, setLocked] = useState(false);
   const [sel, setSel] = useState<Slot>("L");
-  const [display, setDisplay] = useState<DisplayMode>("side");
+  const [display, setDisplayState] = useState<DisplayMode>("side");
   const [opacity, setOpacity] = useState(0.5);
   const [top, setTop] = useState<Slot>("R");
 
@@ -110,8 +110,25 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
     setClips((prev) => ({ L: prev.R, R: prev.L }));
   }, []);
 
+  // Overlay stacks both clips full-screen with no left/right split, so
+  // there's no touch target to tell Stage which one you mean — only locked
+  // mode (where both clips move together) makes that ambiguity harmless.
+  // Guard it here, not just at the call site, so no path can land on
+  // overlay while unlocked.
+  const setDisplay = useCallback(
+    (mode: DisplayMode) => {
+      if (mode === "overlay" && !locked) return;
+      setDisplayState(mode);
+    },
+    [locked]
+  );
+
   const toggleLock = useCallback(() => {
-    setLocked((l) => !l);
+    setLocked((l) => {
+      const next = !l;
+      if (!next) setDisplayState((d) => (d === "overlay" ? "side" : d));
+      return next;
+    });
   }, []);
 
   const activeSlots = useMemo<Slot[]>(() => (locked ? ["L", "R"] : [sel]), [locked, sel]);
@@ -134,7 +151,21 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       loadClip,
       activeSlots,
     }),
-    [clips, locked, sel, display, opacity, top, swapTop, swapSlots, toggleLock, patchSlot, loadClip, activeSlots]
+    [
+      clips,
+      locked,
+      sel,
+      display,
+      opacity,
+      top,
+      setDisplay,
+      swapTop,
+      swapSlots,
+      toggleLock,
+      patchSlot,
+      loadClip,
+      activeSlots,
+    ]
   );
 
   return <PlaybackSessionContext.Provider value={value}>{children}</PlaybackSessionContext.Provider>;

@@ -1,8 +1,6 @@
-import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import type { Slot } from "@/data/types";
-import type { DisplayMode } from "@/state/PlaybackSessionContext";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type HeaderBarProps = {
@@ -10,9 +8,7 @@ type HeaderBarProps = {
   nameR: string;
   sel: Slot;
   locked: boolean;
-  display: DisplayMode;
   onReplace: (slot: Slot) => void;
-  onSetDisplay: (mode: DisplayMode) => void;
   onBack: () => void;
   onTries: () => void;
 };
@@ -22,9 +18,7 @@ export function HeaderBar({
   nameR,
   sel,
   locked,
-  display,
   onReplace,
-  onSetDisplay,
   onBack,
   onTries,
 }: HeaderBarProps) {
@@ -47,22 +41,6 @@ export function HeaderBar({
 
       <View style={styles.spacer} />
 
-      <View style={styles.segment}>
-        <SegmentButton
-          label="Side"
-          icon={<MaterialCommunityIcons name="view-split-vertical" size={14} color={display === "side" ? color.accent : color.text} />}
-          active={display === "side"}
-          onPress={() => onSetDisplay("side")}
-        />
-        <SegmentButton
-          label="Overlay"
-          icon={<Ionicons name="layers-outline" size={14} color={display === "overlay" ? color.accent : color.text} />}
-          active={display === "overlay"}
-          onPress={() => onSetDisplay("overlay")}
-          borderLeft
-        />
-      </View>
-
       <Pressable style={styles.triesButton} onPress={onTries}>
         <Ionicons name="time-outline" size={14} color={color.text} />
         <Text style={styles.triesText}>Tries</Text>
@@ -77,30 +55,6 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
       <Text style={[styles.chipText, active && { color: color.accent }]} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
-  );
-}
-
-function SegmentButton({
-  label,
-  icon,
-  active,
-  onPress,
-  borderLeft,
-}: {
-  label: string;
-  icon: ReactNode;
-  active: boolean;
-  onPress: () => void;
-  borderLeft?: boolean;
-}) {
-  return (
-    <Pressable
-      style={[styles.segmentButton, borderLeft && styles.segmentButtonBorder]}
-      onPress={onPress}
-    >
-      {icon}
-      <Text style={[styles.segmentText, active && { color: color.accent }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -146,25 +100,6 @@ const styles = StyleSheet.create({
   chipActive: { borderWidth: 1, borderColor: color.accent, backgroundColor: "transparent" },
   chipText: { fontSize: 11, color: color.neutral100 },
   spacer: { flex: 1 },
-  segment: {
-    flexDirection: "row",
-    borderWidth: 1,
-    borderColor: withAlpha(color.text, 0.22),
-    borderRadius: radius.md,
-    overflow: "hidden",
-  },
-  segmentButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  segmentButtonBorder: {
-    borderLeftWidth: 1,
-    borderLeftColor: withAlpha(color.text, 0.22),
-  },
-  segmentText: { fontSize: 12, color: color.text },
   triesButton: {
     flexDirection: "row",
     alignItems: "center",

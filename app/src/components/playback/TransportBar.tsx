@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { TrimTrack } from "./TrimTrack";
+import type { DisplayMode } from "@/state/PlaybackSessionContext";
 import { color, radius, space, withAlpha } from "@/theme";
 
 export type TrackRow = {
@@ -26,6 +27,7 @@ type TransportBarProps = {
   tracks: TrackRow[];
   playing: boolean;
   speed: number;
+  display: DisplayMode;
   overlayMode: boolean;
   opacity: number;
   opacityText: string;
@@ -34,6 +36,7 @@ type TransportBarProps = {
   onPlay: () => void;
   onStep: (n: number) => void;
   onSpeedChange: (n: number) => void;
+  onSetDisplay: (mode: DisplayMode) => void;
   onOpacityChange: (n: number) => void;
   onSwap: () => void;
   onSwapSlots: () => void;
@@ -44,6 +47,7 @@ export function TransportBar({
   tracks,
   playing,
   speed,
+  display,
   overlayMode,
   opacity,
   opacityText,
@@ -52,6 +56,7 @@ export function TransportBar({
   onPlay,
   onStep,
   onSpeedChange,
+  onSetDisplay,
   onOpacityChange,
   onSwap,
   onSwapSlots,
@@ -101,6 +106,30 @@ export function TransportBar({
           <Ionicons name="speedometer-outline" size={14} color={color.text} />
           <Text style={styles.smallButtonText}>{speed}×</Text>
         </Pressable>
+
+        {/* Overlay has no left/right split to touch-select a clip by, so it
+            only makes sense once locked (both clips move together) — the
+            whole toggle is moot while unlocked, since side is the only
+            valid choice, so it's hidden rather than shown disabled. */}
+        {locked && (
+          <View style={styles.segment}>
+            <Pressable style={styles.segmentButton} onPress={() => onSetDisplay("side")}>
+              <MaterialCommunityIcons
+                name="view-split-vertical"
+                size={14}
+                color={display === "side" ? color.accent : color.text}
+              />
+              <Text style={[styles.smallButtonText, display === "side" && { color: color.accent }]}>Side</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segmentButton, styles.segmentButtonBorder]}
+              onPress={() => onSetDisplay("overlay")}
+            >
+              <Ionicons name="layers-outline" size={14} color={display === "overlay" ? color.accent : color.text} />
+              <Text style={[styles.smallButtonText, display === "overlay" && { color: color.accent }]}>Overlay</Text>
+            </Pressable>
+          </View>
+        )}
 
         {overlayMode && (
           <View style={styles.sliderGroup}>
@@ -176,6 +205,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   stepText: { fontSize: 14, color: color.text },
+  segment: {
+    height: 46,
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: withAlpha(color.text, 0.2),
+    borderRadius: radius.md,
+    overflow: "hidden",
+  },
+  segmentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+  },
+  segmentButtonBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: withAlpha(color.text, 0.2),
+  },
   sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
   sliderSmall: { width: 64, height: 24 },
   sliderValue: {
