@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { useVideoPlayer } from "expo-video";
 
 /**
@@ -26,8 +27,13 @@ export function useSlotPlayer(uri: string | null) {
       // expo-video's web `replace`/`replaceAsync` starts playback as a
       // side effect (its native implementations don't) — pause right
       // after so every platform ends up paused-until-play, matching what
-      // this app actually wants on load/replace.
-      player.replaceAsync(uri).then(() => player.pause());
+      // this app actually wants on load/replace. Native skips the extra
+      // pause() entirely: a rapid run of replaceAsync calls (e.g. spamming
+      // swap-slots) queues one pause() per call, and a pause() landing
+      // after a later replaceAsync has already moved the player on fails
+      // with "shared object already released."
+      const replaced = player.replaceAsync(uri);
+      if (Platform.OS === "web") replaced.then(() => player.pause());
     }
   }, [uri, player]);
 
