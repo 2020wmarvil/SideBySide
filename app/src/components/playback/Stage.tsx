@@ -1,10 +1,3 @@
-/* eslint-disable react-hooks/refs --
- * react-native-gesture-handler's Gesture.Pan().onBegin(fn)... builder just
- * registers callbacks during render — it doesn't call them. They run later,
- * asynchronously, from the native gesture responder, so reading/writing a
- * ref inside them doesn't have the render-time hazard this rule guards
- * against; the compiler's static analysis can't tell the difference. */
-import { useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
@@ -42,28 +35,34 @@ export function Stage({
   onPinchBegin,
   onPinchChange,
 }: StageProps) {
-  const moved = useRef(false);
-
   // onBegin/onChange/onEnd run as UI-thread worklets (auto-workletized by
   // the gesture builder methods) — the prop callbacks are plain JS
   // closures, so they must cross back via runOnJS or they throw.
-  const panGesture = Gesture.Pan()
-    .onBegin(() => {
-      moved.current = false;
-    })
-    .onChange((e) => {
-      moved.current = moved.current || Math.abs(e.changeX) + Math.abs(e.changeY) > 5;
-      runOnJS(onPan)(e.changeX, e.changeY);
-    })
-    .onEnd(() => {
-      if (!moved.current) runOnJS(onTapStage)();
+  //
+  // Pan requires the touch to clear its own internal activation distance
+  // before it's ever considered active, so a true tap (near-zero movement)
+  // never activates it — it fails/cancels without ever reaching onEnd,
+  // which only fires for gestures that *were* active. Detecting "was this a
+  // tap" from Pan's onEnd was unreliable for exactly that reason. A
+  // dedicated Tap gesture, raced against pan+pinch, resolves this properly:
+  // whichever one actually activates first wins and cancels the other.
+  // onEnd's second arg is `success` — it fires even when the tap fails (e.g.
+  // held past maxDuration, or the race lost to pan/pinch), and that firing
+  // happens right at the moment of failure, not on release. Not checking it
+  // meant a too-long hold called onTapStage once when it timed out.
+  const tapGesture = Gesture.Tap()
+    .maxDistance(10)
+    .onEnd((_e, success) => {
+      if (success) runOnJS(onTapStage)();
     });
+
+  const panGesture = Gesture.Pan().onChange((e) => runOnJS(onPan)(e.changeX, e.changeY));
 
   const pinchGesture = Gesture.Pinch()
     .onBegin(() => runOnJS(onPinchBegin)())
     .onChange((e) => runOnJS(onPinchChange)(e.scale));
 
-  const stageGesture = Gesture.Simultaneous(panGesture, pinchGesture);
+  const stageGesture = Gesture.Race(tapGesture, Gesture.Simultaneous(panGesture, pinchGesture));
 
   const side = display === "side";
   const showSelection = side && !locked;

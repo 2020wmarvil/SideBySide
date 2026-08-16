@@ -113,12 +113,16 @@ export default function PlaybackScreen() {
   // event's zoom, which would compound the scale factor every frame.
   const pinchBase = useRef<Record<Slot, number>>({ L: 1, R: 1 });
   const handlePinchBegin = () => {
-    bumpChrome();
+    // Not bumpChrome() here: Pinch's onBegin fires the moment any single
+    // finger starts tracking, before it's known whether a second finger
+    // will actually join — including for a plain tap. Bumping here raced
+    // with the tap gesture's own show/hide toggle and caused a flicker.
     session.activeSlots.forEach((s) => {
       pinchBase.current[s] = session.clips[s].zoom;
     });
   };
   const handlePinchChange = (scale: number) => {
+    bumpChrome();
     session.activeSlots.forEach((s) => {
       session.patchSlot(s, { zoom: Math.max(1, Math.min(3, pinchBase.current[s] * scale)) });
     });

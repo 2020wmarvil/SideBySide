@@ -43,4 +43,4 @@ app/src/
 
 ## Status
 
-The app icon and splash screen are still Expo's stock template assets — swapping those in needs real artwork, not a config change. Everything else is implemented and has been exercised on an Android device; if something feels off in a specific interaction, it's worth a closer look rather than assumed-working.
+The app icon now uses real artwork (iOS light/tinted variants, Android adaptive icon layers, web favicon); the splash screen is still Expo's stock template asset. Everything else is implemented and has been exercised on an Android device; if something feels off in a specific interaction, it's worth a closer look rather than assumed-working.
