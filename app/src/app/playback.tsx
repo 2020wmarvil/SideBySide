@@ -59,11 +59,15 @@ export default function PlaybackScreen() {
   }, []);
 
   useEffect(() => {
-    if (loading || libraryClips.length === 0) return;
-    if (!session.clips.L.uri) session.loadClip("L", libraryClips[0]);
-    if (!session.clips.R.uri) session.loadClip("R", libraryClips[1] ?? libraryClips[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, libraryClips]);
+    if (loading) return;
+    // Neither slot has ever been picked this session (e.g. a fresh reload
+    // landed straight on /playback) — bounce back to the library instead of
+    // landing on an empty stage. No auto-fill from the library: slots only
+    // ever hold a clip the user explicitly picked.
+    if (!session.clips.L.uri && !session.clips.R.uri) {
+      router.replace("/");
+    }
+  }, [loading, session.clips.L.uri, session.clips.R.uri, router]);
 
   const {
     playerL,

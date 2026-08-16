@@ -7,6 +7,7 @@
  * file-level disable is more honest than a line-disable on every write. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Slot } from "@/data/types";
+import { slotName } from "@/lib/format";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useSlotPlayer } from "./useSlotPlayer";
 import { useDuration } from "./useDuration";
@@ -309,7 +310,7 @@ export function usePlaybackEngine(session: Session) {
       SLOTS.forEach((s) => seek(s, session.clips[s].in));
       showToast("Locked — looping the shorter window");
     } else {
-      showToast(`Unlocked — controls apply to ${session.sel}`);
+      showToast(`Unlocked — controls apply to ${slotName(session.sel, session.top)}`);
     }
   }, [applyPlayState, session, seek, showToast]);
 

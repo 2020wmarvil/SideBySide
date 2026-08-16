@@ -205,7 +205,7 @@ export function Stage({
             onPress={() => !locked && onReplace(slot)}
           >
             <Text style={styles.slotTagText} numberOfLines={1}>
-              {clips[slot].title || slot}
+              {clips[slot].title || "none"}
             </Text>
           </Pressable>
         ))}

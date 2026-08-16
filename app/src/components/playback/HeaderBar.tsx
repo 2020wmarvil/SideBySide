@@ -34,7 +34,8 @@ export function HeaderBar({
   // panes — swapping is a pure position change, not a content move.
   const leftSlot = top;
   const rightSlot: Slot = top === "L" ? "R" : "L";
-  const nameFor = (slot: Slot) => (slot === "L" ? nameL : nameR);
+  // Empty slots have no title — show "none" rather than a blank chip.
+  const nameFor = (slot: Slot) => (slot === "L" ? nameL : nameR) || "none";
   const mirroredFor = (slot: Slot) => (slot === "L" ? mirroredL : mirroredR);
 
   return (
