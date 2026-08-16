@@ -137,6 +137,11 @@ export default function PlaybackScreen() {
     session.setSel(slot);
   };
 
+  const handleReplace = (slot: Slot) => {
+    if (session.locked) return;
+    router.push({ pathname: "/record", params: { slot } });
+  };
+
   const trackFor = (slot: Slot, label: string): TrackRow => {
     const c = session.clips[slot];
     const duration = slot === "L" ? durationL : durationR;
@@ -221,10 +226,7 @@ export default function PlaybackScreen() {
         onPinchBegin={handlePinchBegin}
         onPinchChange={handlePinchChange}
         onSelectSlot={handleSelectSlot}
-        onReplace={(slot) => {
-          if (session.locked) return;
-          router.push({ pathname: "/record", params: { slot } });
-        }}
+        onReplace={handleReplace}
       />
 
       {chrome && (
@@ -234,7 +236,12 @@ export default function PlaybackScreen() {
           onPress={hideChrome}
         >
           <HeaderBar
+            nameL={session.clips.L.title}
+            nameR={session.clips.R.title}
+            sel={session.sel}
+            locked={session.locked}
             display={session.display}
+            onReplace={handleReplace}
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}

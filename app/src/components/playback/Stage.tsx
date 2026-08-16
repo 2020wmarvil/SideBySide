@@ -7,11 +7,6 @@ import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
 import { color, radius, withAlpha } from "@/theme";
 
-// Approximate rendered height of HeaderBar (iconButton height + its
-// vertical padding) — used to clear the header when placing the name/
-// replace badges below it, without needing an onLayout round-trip.
-const HEADER_HEIGHT = 48;
-
 type StageProps = {
   playerL: VideoPlayer;
   playerR: VideoPlayer;
@@ -154,17 +149,16 @@ export function Stage({
           own tap/pan/pinch gesture swallowing them first. Tapping the name
           replaces that clip; selecting which slot is active happens by
           tapping either half of the video instead (see tapGesture above).
-          Only shown alongside the rest of the chrome (header/transport bar)
-          — sitting right under the header, not fixed to the video's own
-          top edge — so they don't compete for taps with the header when
-          both are up, and read as part of the same UI overlay. */}
-      {chrome &&
+          Only shown while the chrome is hidden — HeaderBar shows its own
+          equivalent badges when the chrome is up, so the two never compete
+          for the same tap. */}
+      {!chrome &&
         (["L", "R"] as Slot[]).map((slot, i) => (
           <Pressable
             key={slot}
             style={[
               styles.slotTag,
-              { top: topInset + HEADER_HEIGHT + 8 + (side ? 0 : i * 26) },
+              { top: topInset + 8 + (side ? 0 : i * 26) },
               side ? (slot === "L" ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8 },
               !locked && sel === slot && styles.slotTagActive,
             ]}
