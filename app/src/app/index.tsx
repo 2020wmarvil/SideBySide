@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { usePlaybackEngine } from "@/hooks/usePlaybackEngine";
@@ -129,6 +130,13 @@ export default function PlaybackScreen() {
     });
   };
 
+  const handleSelectSlot = (slot: Slot) => {
+    if (session.locked || slot === session.sel) return;
+    bumpChrome();
+    pause();
+    session.setSel(slot);
+  };
+
   const trackFor = (slot: Slot, label: string): TrackRow => {
     const c = session.clips[slot];
     const duration = slot === "L" ? durationL : durationR;
@@ -192,6 +200,7 @@ export default function PlaybackScreen() {
 
   return (
     <View style={styles.screen}>
+      <StatusBar hidden />
       <Stage
         playerL={playerL}
         playerR={playerR}
@@ -209,6 +218,7 @@ export default function PlaybackScreen() {
         onPan={handlePan}
         onPinchBegin={handlePinchBegin}
         onPinchChange={handlePinchChange}
+        onSelectSlot={handleSelectSlot}
       />
 
       {chrome && (
@@ -223,10 +233,9 @@ export default function PlaybackScreen() {
             sel={session.sel}
             locked={session.locked}
             display={session.display}
-            onSelect={(slot) => {
-              if (session.locked || slot === session.sel) return;
-              pause();
-              session.setSel(slot);
+            onReplace={(slot) => {
+              if (session.locked) return;
+              router.push({ pathname: "/record", params: { slot } });
             }}
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
@@ -261,14 +270,12 @@ export default function PlaybackScreen() {
             opacity={session.opacity}
             opacityText={`${Math.round(session.opacity * 100)}%`}
             locked={session.locked}
-            replaceLabel={`Replace ${activeSlot}`}
             controlsEnabled
             onPlay={togglePlay}
             onStep={step}
             onSpeedChange={setSpeed}
             onOpacityChange={session.setOpacity}
             onSwap={session.swapTop}
-            onReplace={() => router.push({ pathname: "/record", params: { slot: activeSlot } })}
             onLock={handleLock}
           />
         </View>

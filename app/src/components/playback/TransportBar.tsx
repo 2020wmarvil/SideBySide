@@ -30,14 +30,12 @@ type TransportBarProps = {
   opacity: number;
   opacityText: string;
   locked: boolean;
-  replaceLabel: string;
   controlsEnabled: boolean;
   onPlay: () => void;
   onStep: (n: number) => void;
   onSpeedChange: (n: number) => void;
   onOpacityChange: (n: number) => void;
   onSwap: () => void;
-  onReplace: () => void;
   onLock: () => void;
 };
 
@@ -49,14 +47,12 @@ export function TransportBar({
   opacity,
   opacityText,
   locked,
-  replaceLabel,
   controlsEnabled,
   onPlay,
   onStep,
   onSpeedChange,
   onOpacityChange,
   onSwap,
-  onReplace,
   onLock,
 }: TransportBarProps) {
   return (
@@ -127,12 +123,6 @@ export function TransportBar({
         )}
 
         <View style={styles.trailingGroup}>
-          {!locked && (
-            <Pressable style={styles.smallButton} onPress={onReplace}>
-              <Ionicons name="ellipse" size={12} color={color.text} />
-              <Text style={styles.smallButtonText}>{replaceLabel}</Text>
-            </Pressable>
-          )}
           <Pressable style={[styles.lockButton, locked && styles.lockButtonActive]} onPress={onLock}>
             <Ionicons name={locked ? "lock-closed" : "lock-open-outline"} size={16} color={locked ? color.stageBg : color.text} />
           </Pressable>

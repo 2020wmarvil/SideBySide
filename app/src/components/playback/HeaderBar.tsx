@@ -11,7 +11,7 @@ type HeaderBarProps = {
   sel: Slot;
   locked: boolean;
   display: DisplayMode;
-  onSelect: (slot: Slot) => void;
+  onReplace: (slot: Slot) => void;
   onSetDisplay: (mode: DisplayMode) => void;
   onBack: () => void;
   onTries: () => void;
@@ -24,7 +24,7 @@ export function HeaderBar({
   sel,
   locked,
   display,
-  onSelect,
+  onReplace,
   onSetDisplay,
   onBack,
   onTries,
@@ -36,11 +36,11 @@ export function HeaderBar({
         <Ionicons name="arrow-back" size={16} color={color.text} />
       </Pressable>
 
-      <Chip label={nameL} active={!locked && sel === "L"} onPress={() => onSelect("L")} />
+      <Chip label={nameL} active={!locked && sel === "L"} onPress={() => onReplace("L")} />
       <Pressable style={styles.swapSlotsButton} onPress={onSwapSlots}>
         <Ionicons name="swap-horizontal-outline" size={14} color={color.text} />
       </Pressable>
-      <Chip label={nameR} active={!locked && sel === "R"} onPress={() => onSelect("R")} />
+      <Chip label={nameR} active={!locked && sel === "R"} onPress={() => onReplace("R")} />
 
       <View style={styles.spacer} />
 

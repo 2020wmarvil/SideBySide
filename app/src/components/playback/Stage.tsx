@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { VideoView, type VideoPlayer } from "expo-video";
@@ -19,6 +19,7 @@ type StageProps = {
   onPan: (dx: number, dy: number) => void;
   onPinchBegin: () => void;
   onPinchChange: (scale: number) => void;
+  onSelectSlot: (slot: Slot) => void;
 };
 
 export function Stage({
@@ -34,6 +35,7 @@ export function Stage({
   onPan,
   onPinchBegin,
   onPinchChange,
+  onSelectSlot,
 }: StageProps) {
   // onBegin/onChange/onEnd run as UI-thread worklets (auto-workletized by
   // the gesture builder methods) — the prop callbacks are plain JS
@@ -116,9 +118,6 @@ export function Stage({
             // — textureView participates in normal view clipping instead.
             surfaceType="textureView"
           />
-          <View style={styles.slotTag}>
-            <Text style={styles.slotTagText}>{slot}</Text>
-          </View>
         </View>
       ))}
 
@@ -127,6 +126,25 @@ export function Stage({
       <GestureDetector gesture={stageGesture}>
         <View style={styles.tapLayer} />
       </GestureDetector>
+
+      {/* Rendered above tapLayer (which sits at a higher zIndex than the
+          panes) so these can actually receive taps instead of the stage's
+          own tap/pan/pinch gesture swallowing them first. */}
+      {(["L", "R"] as Slot[]).map((slot, i) => (
+        <Pressable
+          key={slot}
+          style={[
+            styles.slotTag,
+            side ? (slot === "L" ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8, top: 8 + i * 26 },
+            !locked && sel === slot && styles.slotTagActive,
+          ]}
+          onPress={() => !locked && onSelectSlot(slot)}
+        >
+          <Text style={styles.slotTagText} numberOfLines={1}>
+            {clips[slot].title || slot}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -151,11 +169,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 8,
     top: 8,
+    maxWidth: 150,
+    zIndex: 4,
     borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "transparent",
     paddingHorizontal: 6,
     paddingVertical: 2,
     backgroundColor: withAlpha(color.stageBg, 0.65),
   },
+  slotTagActive: { borderColor: color.accent },
   slotTagText: {
     fontSize: 10,
     letterSpacing: 1,
