@@ -47,6 +47,24 @@ export function Stage({
   const [stageWidth, setStageWidth] = useState(0);
   const side = display === "side";
 
+  // Pan/pinch target whichever clip is physically under the touch, not
+  // whichever slot is "selected" for transport controls — framing a clip
+  // should feel like touching it, independent of which one is wired up to
+  // the trim/scrub controls below. In side-by-side that's a left/right
+  // split by touch x, resolved through `top` since swapping is a pure
+  // position change and doesn't move clip identity; in overlay only the
+  // top pane is visible to touch, so it's always the target. The slot is
+  // resolved once per gesture (onBegin) and held in a UI-thread shared
+  // value so a finger drifting across the midline mid-drag doesn't
+  // retarget partway through.
+  const slotAt = (x: number): Slot => {
+    "worklet";
+    if (!side) return top;
+    if (stageWidth <= 0) return top;
+    const other: Slot = top === "L" ? "R" : "L";
+    return x < stageWidth / 2 ? top : other;
+  };
+
   // onBegin/onChange/onEnd run as UI-thread worklets (auto-workletized by
   // the gesture builder methods) — the prop callbacks are plain JS
   // closures, so they must cross back via runOnJS or they throw.
@@ -70,24 +88,9 @@ export function Stage({
       // Only side-by-side mode has a meaningful left/right split to select
       // from — overlay mode's panes are both full-width and stacked.
       if (side && stageWidth > 0) {
-        runOnJS(onSelectSlot)(e.x < stageWidth / 2 ? "L" : "R");
+        runOnJS(onSelectSlot)(slotAt(e.x));
       }
     });
-
-  // Pan/pinch target whichever clip is physically under the touch, not
-  // whichever slot is "selected" for transport controls — framing a clip
-  // should feel like touching it, independent of which one is wired up to
-  // the trim/scrub controls below. In side-by-side that's a left/right
-  // split by touch x; in overlay only the top pane is visible to touch, so
-  // it's always the target. The slot is resolved once per gesture (onBegin)
-  // and held in a UI-thread shared value so a finger drifting across the
-  // midline mid-drag doesn't retarget partway through.
-  const slotAt = (x: number): Slot => {
-    "worklet";
-    if (!side) return top;
-    if (stageWidth <= 0) return top;
-    return x < stageWidth / 2 ? "L" : "R";
-  };
 
   const panSlot = useSharedValue<Slot>("L");
   const pinchSlot = useSharedValue<Slot>("L");
@@ -112,15 +115,15 @@ export function Stage({
   const showSelection = side && !locked;
 
   const paneStyle = (slot: Slot) => {
+    const isTop = top === slot;
     if (side) {
       return {
-        left: slot === "L" ? "0%" : "50%",
+        left: isTop ? "0%" : "50%",
         width: "50%",
         zIndex: 1,
         opacity: 1,
       } as const;
     }
-    const isTop = top === slot;
     return {
       left: "0%",
       width: "100%",
@@ -196,7 +199,7 @@ export function Stage({
             style={[
               styles.slotTag,
               { top: topInset + 8 + (side ? 0 : i * 26) },
-              side ? (slot === "L" ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8 },
+              side ? (slot === top ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8 },
               !locked && sel === slot && styles.slotTagActive,
             ]}
             onPress={() => !locked && onReplace(slot)}

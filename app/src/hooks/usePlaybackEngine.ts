@@ -257,6 +257,30 @@ export function usePlaybackEngine(session: Session) {
     [session, playerFor]
   );
 
+  // Overlay's top/bottom panes both play continuously and are only
+  // corrected back in sync at loop boundaries (see the interval above), so
+  // small drift between L and R inside a window is otherwise never fully
+  // eliminated. That drift is invisible while a slot sits fully covered
+  // underneath the opaque bottom pane, but swapping which slot is on top
+  // suddenly exposes it as an apparent frame jump — so snap both players to
+  // the same elapsed offset (measured from whichever slot is on top right
+  // now, to preserve what's currently on screen) right before the swap.
+  const resyncSlots = useCallback(() => {
+    const lim = Math.min(windowLen("L"), windowLen("R"));
+    if (!Number.isFinite(lim) || lim <= 0) return;
+    const refSlot = session.top;
+    const refDuration = durationFor(refSlot);
+    if (!refDuration) return;
+    const refClip = session.clips[refSlot];
+    const elapsed = Math.min(lim, Math.max(0, playerFor(refSlot).currentTime - refClip.in * refDuration));
+    SLOTS.forEach((s) => {
+      const d = durationFor(s);
+      if (!d) return;
+      const c = session.clips[s];
+      playerFor(s).currentTime = c.in * d + elapsed;
+    });
+  }, [session.clips, session.top, windowLen, durationFor, playerFor]);
+
   const handleLock = useCallback(() => {
     applyPlayState(false);
     const next = !session.locked;
@@ -284,6 +308,7 @@ export function usePlaybackEngine(session: Session) {
     step,
     setSpeed,
     handleLock,
+    resyncSlots,
     windowLen,
   };
 }

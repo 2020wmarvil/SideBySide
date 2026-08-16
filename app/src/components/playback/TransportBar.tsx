@@ -38,7 +38,7 @@ type TransportBarProps = {
   onSpeedChange: (n: number) => void;
   onSetDisplay: (mode: DisplayMode) => void;
   onOpacityChange: (n: number) => void;
-  onSwapSlots: () => void;
+  onSwap: () => void;
   onLock: () => void;
 };
 
@@ -57,7 +57,7 @@ export function TransportBar({
   onSpeedChange,
   onSetDisplay,
   onOpacityChange,
-  onSwapSlots,
+  onSwap,
   onLock,
 }: TransportBarProps) {
   return (
@@ -144,7 +144,7 @@ export function TransportBar({
         )}
 
         <View style={styles.trailingGroup}>
-          <Pressable style={styles.lockButton} onPress={onSwapSlots}>
+          <Pressable style={styles.lockButton} onPress={onSwap}>
             <Ionicons name="swap-horizontal-outline" size={16} color={color.text} />
           </Pressable>
           <Pressable style={[styles.lockButton, locked && styles.lockButtonActive]} onPress={onLock}>

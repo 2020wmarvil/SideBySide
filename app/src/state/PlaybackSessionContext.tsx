@@ -43,7 +43,7 @@ type PlaybackSessionValue = {
   setSel: (slot: Slot) => void;
   setDisplay: (mode: DisplayMode) => void;
   setOpacity: (n: number) => void;
-  swapSlots: () => void;
+  swapTop: () => void;
   toggleLock: () => void;
   patchSlot: (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => void;
   loadClip: (slot: Slot, clip: Clip, opts?: { keepFraming?: boolean }) => void;
@@ -63,9 +63,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   const [sel, setSel] = useState<Slot>("L");
   const [display, setDisplayState] = useState<DisplayMode>("side");
   const [opacity, setOpacity] = useState(0.6);
-  // Fixed: overlay always applies opacity to R, since swapping slot content
-  // (swapSlots) already changes which clip is the faded one on top.
-  const top: Slot = "R";
+  const [top, setTop] = useState<Slot>("R");
 
   const patchSlot = useCallback(
     (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => {
@@ -102,12 +100,11 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // swaps the two slots' entire contents (clip, trim window, speed, zoom,
-  // pan) — a full trade of what's on the left vs. the right. `sel` and
-  // `top` stay put deliberately: they refer to a physical slot/position,
-  // not to whichever clip currently occupies it.
-  const swapSlots = useCallback(() => {
-    setClips((prev) => ({ L: prev.R, R: prev.L }));
+  // Flips which slot renders in the primary position — on top in overlay,
+  // on the left in side-by-side. Clip data never moves between slots, so
+  // this is a pure re-render (no video reload) regardless of display mode.
+  const swapTop = useCallback(() => {
+    setTop((t) => (t === "L" ? "R" : "L"));
   }, []);
 
   // Overlay stacks both clips full-screen with no left/right split, so
@@ -144,7 +141,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       setSel,
       setDisplay,
       setOpacity,
-      swapSlots,
+      swapTop,
       toggleLock,
       patchSlot,
       loadClip,
@@ -158,7 +155,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       opacity,
       top,
       setDisplay,
-      swapSlots,
+      swapTop,
       toggleLock,
       patchSlot,
       loadClip,

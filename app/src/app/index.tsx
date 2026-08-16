@@ -80,6 +80,7 @@ export default function PlaybackScreen() {
     step,
     setSpeed,
     handleLock,
+    resyncSlots,
     windowLen,
   } = usePlaybackEngine(session);
 
@@ -134,6 +135,17 @@ export default function PlaybackScreen() {
     bumpChrome();
     pause();
     session.setSel(slot);
+  };
+
+  // Swapping flips which slot renders in the primary position (left in
+  // side-by-side, on top in overlay) rather than moving clip data between
+  // slots — a pure re-render, so it's instant instead of forcing both
+  // players to reload their video source. Resync is only needed for
+  // overlay: that's the one case where a slot sits fully hidden behind an
+  // opaque pane, letting drift build up invisibly until the swap reveals it.
+  const handleSwap = () => {
+    if (session.display === "overlay") resyncSlots();
+    session.swapTop();
   };
 
   const handleReplace = (slot: Slot) => {
@@ -259,6 +271,7 @@ export default function PlaybackScreen() {
             nameR={session.clips.R.title}
             mirroredL={session.clips.L.mirrored}
             mirroredR={session.clips.R.mirrored}
+            top={session.top}
             sel={session.sel}
             locked={session.locked}
             onReplace={handleReplace}
@@ -301,7 +314,7 @@ export default function PlaybackScreen() {
             onSpeedChange={setSpeed}
             onSetDisplay={session.setDisplay}
             onOpacityChange={session.setOpacity}
-            onSwapSlots={session.swapSlots}
+            onSwap={handleSwap}
             onLock={handleLock}
           />
         </View>

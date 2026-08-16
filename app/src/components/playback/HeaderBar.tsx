@@ -8,6 +8,7 @@ type HeaderBarProps = {
   nameR: string;
   mirroredL: boolean;
   mirroredR: boolean;
+  top: Slot;
   sel: Slot;
   locked: boolean;
   onReplace: (slot: Slot) => void;
@@ -21,6 +22,7 @@ export function HeaderBar({
   nameR,
   mirroredL,
   mirroredR,
+  top,
   sel,
   locked,
   onReplace,
@@ -28,6 +30,13 @@ export function HeaderBar({
   onBack,
   onTries,
 }: HeaderBarProps) {
+  // Which slot renders on which side follows `top`, same as Stage's own
+  // panes — swapping is a pure position change, not a content move.
+  const leftSlot = top;
+  const rightSlot: Slot = top === "L" ? "R" : "L";
+  const nameFor = (slot: Slot) => (slot === "L" ? nameL : nameR);
+  const mirroredFor = (slot: Slot) => (slot === "L" ? mirroredL : mirroredR);
+
   return (
     <View style={styles.bar}>
       <Pressable style={styles.iconButton} onPress={onBack}>
@@ -36,17 +45,26 @@ export function HeaderBar({
 
       {/* Same badges Stage shows on the video itself while the chrome is
           hidden — shown here instead while it's up, on the side matching
-          each clip's slot letter, so the two never compete for a tap. R is
-          pinned to the screen's horizontal midpoint (left-aligned on its
-          half, same as Stage's own R badge) rather than the far right edge,
-          so it sits flush against the divider between the two clips. */}
+          each clip's current on-screen position, so the two never compete
+          for a tap. The right-hand badge is pinned to the screen's
+          horizontal midpoint (left-aligned on its half, same as Stage's own
+          right-hand badge) rather than the far right edge, so it sits flush
+          against the divider between the two clips. */}
       <View style={styles.chipGroup}>
-        <Chip label={nameL} active={!locked && sel === "L"} onPress={() => !locked && onReplace("L")} />
-        <MirrorButton active={mirroredL} onPress={() => onMirror("L")} />
+        <Chip
+          label={nameFor(leftSlot)}
+          active={!locked && sel === leftSlot}
+          onPress={() => !locked && onReplace(leftSlot)}
+        />
+        <MirrorButton active={mirroredFor(leftSlot)} onPress={() => onMirror(leftSlot)} />
       </View>
       <View style={styles.chipRightWrap}>
-        <Chip label={nameR} active={!locked && sel === "R"} onPress={() => !locked && onReplace("R")} />
-        <MirrorButton active={mirroredR} onPress={() => onMirror("R")} />
+        <Chip
+          label={nameFor(rightSlot)}
+          active={!locked && sel === rightSlot}
+          onPress={() => !locked && onReplace(rightSlot)}
+        />
+        <MirrorButton active={mirroredFor(rightSlot)} onPress={() => onMirror(rightSlot)} />
       </View>
 
       <View style={styles.spacer} />
