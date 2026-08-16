@@ -22,7 +22,7 @@ export function ClipLibraryProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       let loaded = await loadClips();
-      if (loaded.length === 0) {
+      if (loaded.length === 0 && __DEV__) {
         loaded = await buildSeedClips();
         await saveClips(loaded);
       }
