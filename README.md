@@ -18,17 +18,17 @@
 
 <p align="center">
   <strong>Import</strong><br/>
-  <video src="media/demo-import.mp4" width="280" controls muted playsinline></video>
+  <img src="media/demo-import.gif" width="280" alt="Importing a clip" />
 </p>
 
 <p align="center">
   <strong>Editing</strong><br/>
-  <video src="media/demo-editing.mp4" width="560" controls muted playsinline></video>
+  <img src="media/demo-editing.gif" width="560" alt="Editing a side-by-side comparison" />
 </p>
 
 <p align="center">
   <strong>Locked playback</strong><br/>
-  <video src="media/demo-locked-playback.mp4" width="560" controls muted playsinline></video>
+  <img src="media/demo-locked-playback.gif" width="560" alt="Locked, synced playback" />
 </p>
 
 ## Running it
