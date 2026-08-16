@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { VideoView } from "expo-video";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
@@ -22,7 +23,7 @@ import { persistRecording } from "@/data/recordings";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useThumbnail } from "@/hooks/useThumbnail";
 import { useSlotPlayer } from "@/hooks/useSlotPlayer";
-import { usePortraitLock } from "@/hooks/usePortraitLock";
+import { useFreeOrientation } from "@/hooks/useFreeOrientation";
 import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { TagEditor } from "@/components/shared/TagEditor";
 import { slotName } from "@/lib/format";
@@ -34,6 +35,21 @@ type Phase = "ready" | "recording" | "review" | "tagging";
 // Below this width (portrait phones) the fixed-width preview column leaves
 // too little room for the tag form beside it — stack them instead.
 const WIDE_LAYOUT_MIN_WIDTH = 500;
+
+// Android's video encoder doesn't reliably tag a recording's rotation if the
+// screen orientation changes mid-take — it needs one definitive orientation
+// for the full duration of the take, or the clip can come out rotated
+// regardless of which way the device was actually held. Locking to whatever
+// orientation is already current right before recordAsync starts (like a
+// native camera app, where only the preview keeps rotating up to the moment
+// the shutter is pressed) works around this without giving up free rotation
+// for framing — see startRecording below.
+const orientationLockFor: Partial<Record<ScreenOrientation.Orientation, ScreenOrientation.OrientationLock>> = {
+  [ScreenOrientation.Orientation.PORTRAIT_UP]: ScreenOrientation.OrientationLock.PORTRAIT_UP,
+  [ScreenOrientation.Orientation.PORTRAIT_DOWN]: ScreenOrientation.OrientationLock.PORTRAIT_DOWN,
+  [ScreenOrientation.Orientation.LANDSCAPE_LEFT]: ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
+  [ScreenOrientation.Orientation.LANDSCAPE_RIGHT]: ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
+};
 
 export default function RecordScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
@@ -68,15 +84,10 @@ export default function RecordScreen() {
     else takePlayer.pause();
   }, [phase, takePlayer, takeUri]);
 
-  // Locked portrait for the whole flow, not just while composing: Android's
-  // video encoder doesn't reliably tag a recording's rotation across an
-  // orientation change mid-take, so the take needs to start and end without
-  // the screen ever having rotated. Fixing the screen to portrait for the
-  // full lifetime of this screen (matching Library/Import) sidesteps that
-  // rather than chasing it — this is a camera/trick-clip app built around
-  // portrait footage anyway (see useLandscapeLock, the one screen that
-  // isn't portrait).
-  usePortraitLock();
+  // Free to rotate while composing, in either orientation, like a native
+  // camera app — startRecording below locks it down for the duration of the
+  // actual take (see orientationLockFor above for why).
+  useFreeOrientation();
   useImmersiveNavBar();
 
   useEffect(() => {
@@ -85,15 +96,77 @@ export default function RecordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tracks the most recent non-flat orientation so startRecording always has
+  // something usable to lock to, even if getOrientationAsync() is read at
+  // the exact instant the device is lying flat (Orientation.UNKNOWN) — the
+  // listener only fires on a portrait<->landscape crossing, but that's fine
+  // here since it's purely a fallback for the flat case, not the primary
+  // read (startRecording re-checks getOrientationAsync() fresh every time).
+  const lastKnownOrientation = useRef<ScreenOrientation.Orientation>(ScreenOrientation.Orientation.PORTRAIT_UP);
+  useEffect(() => {
+    const sub = ScreenOrientation.addOrientationChangeListener(({ orientationInfo }) => {
+      if (orientationInfo.orientation !== ScreenOrientation.Orientation.UNKNOWN) {
+        lastKnownOrientation.current = orientationInfo.orientation;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Locking the screen isn't enough on its own: expo-camera's Android video
+  // encoder only samples the device's rotation once, when its native camera
+  // session is first bound, and never re-samples it afterwards (unlike photo
+  // capture, which does track rotation live). If that initial bind happened
+  // in portrait — which it does, since the screen opens in portrait before
+  // anyone's rotated it — every take gets tagged as portrait even after
+  // rotating to landscape and locking there. Remounting the CameraView (via
+  // this key) forces a fresh bind that samples the *current*, now-locked
+  // orientation; boundOrientationRef tracks which orientation the mounted
+  // camera was last bound under so startRecording only pays for a remount
+  // when the orientation has actually changed since the last take, not on
+  // every single one.
+  const [cameraKey, setCameraKey] = useState(0);
+  const boundOrientationRef = useRef<ScreenOrientation.Orientation | null>(null);
+  const cameraReadyResolveRef = useRef<(() => void) | null>(null);
+  const handleCameraReady = () => {
+    cameraReadyResolveRef.current?.();
+    cameraReadyResolveRef.current = null;
+  };
+  // Bounded wait: if the rebind never reports ready (camera error, odd
+  // device), fall back to recording anyway rather than freezing the ready
+  // phase on a tap that silently does nothing.
+  const waitForCameraReady = () =>
+    new Promise<void>((resolve) => {
+      cameraReadyResolveRef.current = resolve;
+      setTimeout(resolve, 4000);
+    });
+
   const backOut = () => router.replace(slot ? "/playback" : "/");
 
   const startRecording = async () => {
     if (!cameraRef.current) return;
+    const current = await ScreenOrientation.getOrientationAsync();
+    const orientation =
+      current === ScreenOrientation.Orientation.UNKNOWN ? lastKnownOrientation.current : current;
+    await ScreenOrientation.lockAsync(orientationLockFor[orientation] ?? ScreenOrientation.OrientationLock.PORTRAIT_UP);
+
+    if (boundOrientationRef.current !== orientation) {
+      const ready = waitForCameraReady();
+      setCameraKey((k) => k + 1);
+      await ready;
+      boundOrientationRef.current = orientation;
+      // The remount tears down and recreates cameraRef.current's native
+      // view; the ref only points at the new instance once it re-renders.
+      if (!cameraRef.current) return;
+    }
+
     setPhase("recording");
     setElapsedTenths(0);
     timerRef.current = setInterval(() => setElapsedTenths((n) => n + 1), 100);
     const result = await cameraRef.current.recordAsync();
     if (timerRef.current) clearInterval(timerRef.current);
+    // Free the lock back up once the take is done so review/tagging (and
+    // the next take) can rotate again.
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(() => {});
     if (result?.uri) {
       setTakeUri(result.uri);
       setPhase("review");
@@ -292,7 +365,14 @@ export default function RecordScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar hidden />
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} mode="video" facing="back" />
+      <CameraView
+        key={cameraKey}
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        mode="video"
+        facing="back"
+        onCameraReady={handleCameraReady}
+      />
       <View style={styles.framingGuide} pointerEvents="none" />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
