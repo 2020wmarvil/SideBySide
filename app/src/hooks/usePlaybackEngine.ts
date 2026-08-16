@@ -20,16 +20,19 @@ const TICK_MS = 70;
 // How far L and R are allowed to quietly drift apart, in seconds, before
 // the tick loop starts nudging the lagging one back up to match —
 // independent decode timing means they never drift in lockstep on their
-// own.
-const DRIFT_TOLERANCE = 0.08;
+// own. Kept tight because clips reviewed here typically only run a couple
+// of seconds, so even a fraction of a second out of sync is a large chunk
+// of the clip.
+const DRIFT_TOLERANCE = 0.04;
 
 // Rather than seek the lagging slot back in sync (a real decoder seek,
 // visible as a stutter even with a loose tolerance), briefly bump its
 // playbackRate so it catches up on its own — both players are muted (see
-// useSlotPlayer), so there's no pitch-shifted audio to give it away, and a
-// few-percent speed bump for under a second reads as nothing at all. Closes
-// a max-tolerance gap in under 1.5s at this boost.
-const CATCHUP_RATE_BOOST = 0.06;
+// useSlotPlayer), so there's no pitch-shifted audio to give it away. Set
+// high enough that a tolerance-sized gap closes in well under a second (a
+// few hundred ms), since a slow catch-up on a short clip would itself eat
+// a noticeable fraction of it.
+const CATCHUP_RATE_BOOST = 0.18;
 
 /**
  * Owns the two video players and drives them against the session's
