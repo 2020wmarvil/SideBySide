@@ -80,6 +80,7 @@ export default function PlaybackScreen() {
     step,
     setSpeed,
     handleLock,
+    resyncSlots,
     windowLen,
   } = usePlaybackEngine(session);
 
@@ -136,9 +137,20 @@ export default function PlaybackScreen() {
     session.setSel(slot);
   };
 
+  // resync before flipping which slot is on top, using the pre-swap `top`
+  // as the reference, so the swap can't reveal drift as a visible jump.
+  const handleSwapTop = () => {
+    resyncSlots();
+    session.swapTop();
+  };
+
   const handleReplace = (slot: Slot) => {
     if (session.locked) return;
     router.push({ pathname: "/record", params: { slot } });
+  };
+
+  const handleMirror = (slot: Slot) => {
+    session.patchSlot(slot, (prev) => ({ mirrored: !prev.mirrored }));
   };
 
   const trackFor = (slot: Slot, label: string): TrackRow => {
@@ -253,9 +265,12 @@ export default function PlaybackScreen() {
           <HeaderBar
             nameL={session.clips.L.title}
             nameR={session.clips.R.title}
+            mirroredL={session.clips.L.mirrored}
+            mirroredR={session.clips.R.mirrored}
             sel={session.sel}
             locked={session.locked}
             onReplace={handleReplace}
+            onMirror={handleMirror}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}
           />
@@ -294,7 +309,7 @@ export default function PlaybackScreen() {
             onSpeedChange={setSpeed}
             onSetDisplay={session.setDisplay}
             onOpacityChange={session.setOpacity}
-            onSwap={session.swapTop}
+            onSwap={handleSwapTop}
             onSwapSlots={session.swapSlots}
             onLock={handleLock}
           />

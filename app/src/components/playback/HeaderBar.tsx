@@ -1,14 +1,17 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { Slot } from "@/data/types";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type HeaderBarProps = {
   nameL: string;
   nameR: string;
+  mirroredL: boolean;
+  mirroredR: boolean;
   sel: Slot;
   locked: boolean;
   onReplace: (slot: Slot) => void;
+  onMirror: (slot: Slot) => void;
   onBack: () => void;
   onTries: () => void;
 };
@@ -16,9 +19,12 @@ type HeaderBarProps = {
 export function HeaderBar({
   nameL,
   nameR,
+  mirroredL,
+  mirroredR,
   sel,
   locked,
   onReplace,
+  onMirror,
   onBack,
   onTries,
 }: HeaderBarProps) {
@@ -34,9 +40,13 @@ export function HeaderBar({
           pinned to the screen's horizontal midpoint (left-aligned on its
           half, same as Stage's own R badge) rather than the far right edge,
           so it sits flush against the divider between the two clips. */}
-      <Chip label={nameL} active={!locked && sel === "L"} onPress={() => !locked && onReplace("L")} />
+      <View style={styles.chipGroup}>
+        <Chip label={nameL} active={!locked && sel === "L"} onPress={() => !locked && onReplace("L")} />
+        <MirrorButton active={mirroredL} onPress={() => onMirror("L")} />
+      </View>
       <View style={styles.chipRightWrap}>
         <Chip label={nameR} active={!locked && sel === "R"} onPress={() => !locked && onReplace("R")} />
+        <MirrorButton active={mirroredR} onPress={() => onMirror("R")} />
       </View>
 
       <View style={styles.spacer} />
@@ -55,6 +65,18 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
       <Text style={[styles.chipText, active && { color: color.accent }]} numberOfLines={1}>
         {label}
       </Text>
+    </Pressable>
+  );
+}
+
+function MirrorButton({ active, onPress }: { active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[styles.mirrorButton, active && styles.mirrorButtonActive]}
+      onPress={onPress}
+      hitSlop={6}
+    >
+      <MaterialCommunityIcons name="flip-horizontal" size={14} color={active ? color.accent : color.neutral300} />
     </Pressable>
   );
 }
@@ -88,17 +110,34 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.sm,
   },
+  chipGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   chipRightWrap: {
     position: "absolute",
     left: "50%",
     top: 0,
     bottom: 0,
     marginLeft: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     justifyContent: "center",
   },
   chipNeutral: { backgroundColor: color.neutral800 },
   chipActive: { borderWidth: 1, borderColor: color.accent, backgroundColor: "transparent" },
   chipText: { fontSize: 11, color: color.neutral100 },
+  mirrorButton: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: color.neutral800,
+  },
+  mirrorButtonActive: { borderWidth: 1, borderColor: color.accent, backgroundColor: "transparent" },
   spacer: { flex: 1 },
   triesButton: {
     flexDirection: "row",

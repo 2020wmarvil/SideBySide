@@ -131,7 +131,17 @@ export function Stage({
 
   const videoTransform = (slot: Slot) => {
     const c = clips[slot];
-    return { transform: [{ scale: c.zoom }, { translateX: c.px }, { translateY: c.py }] };
+    // Mirror first, while still in the video's own local space — flipping
+    // after translate/pan would mirror the pan offset too, reversing which
+    // way a drag moves the frame once a clip is mirrored.
+    return {
+      transform: [
+        { scaleX: c.mirrored ? -1 : 1 },
+        { scale: c.zoom },
+        { translateX: c.px },
+        { translateY: c.py },
+      ],
+    };
   };
 
   const onStageLayout = (e: LayoutChangeEvent) => setStageWidth(e.nativeEvent.layout.width);

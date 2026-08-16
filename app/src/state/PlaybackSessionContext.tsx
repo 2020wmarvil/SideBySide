@@ -13,6 +13,7 @@ export type SlotState = {
   zoom: number; // 1..3
   px: number; // pan, clamped -60..60
   py: number;
+  mirrored: boolean;
 };
 
 const EMPTY_SLOT: SlotState = {
@@ -26,6 +27,7 @@ const EMPTY_SLOT: SlotState = {
   zoom: 1,
   px: 0,
   py: 0,
+  mirrored: false,
 };
 
 export type DisplayMode = "side" | "overlay";
@@ -91,6 +93,7 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
             zoom: opts?.keepFraming ? prevSlot.zoom : 1,
             px: opts?.keepFraming ? prevSlot.px : 0,
             py: opts?.keepFraming ? prevSlot.py : 0,
+            mirrored: opts?.keepFraming ? prevSlot.mirrored : false,
           },
         };
       });
