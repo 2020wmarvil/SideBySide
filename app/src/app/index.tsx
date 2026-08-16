@@ -6,6 +6,7 @@ import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { usePlaybackEngine } from "@/hooks/usePlaybackEngine";
 import { useLandscapeLock } from "@/hooks/useLandscapeLock";
+import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { Stage } from "@/components/playback/Stage";
 import { HeaderBar } from "@/components/playback/HeaderBar";
 import { TransportBar, type TrackRow } from "@/components/playback/TransportBar";
@@ -23,6 +24,7 @@ function formatTime(duration: number, inFrac: number, outFrac: number, posFrac: 
 
 export default function PlaybackScreen() {
   useLandscapeLock();
+  useImmersiveNavBar();
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -165,6 +167,7 @@ export default function PlaybackScreen() {
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}
+            onSwapSlots={session.swapSlots}
           />
           {triesOpen && (
             <TriesPanel

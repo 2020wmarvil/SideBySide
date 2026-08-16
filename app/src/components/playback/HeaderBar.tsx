@@ -15,9 +15,21 @@ type HeaderBarProps = {
   onSetDisplay: (mode: DisplayMode) => void;
   onBack: () => void;
   onTries: () => void;
+  onSwapSlots: () => void;
 };
 
-export function HeaderBar({ nameL, nameR, sel, locked, display, onSelect, onSetDisplay, onBack, onTries }: HeaderBarProps) {
+export function HeaderBar({
+  nameL,
+  nameR,
+  sel,
+  locked,
+  display,
+  onSelect,
+  onSetDisplay,
+  onBack,
+  onTries,
+  onSwapSlots,
+}: HeaderBarProps) {
   return (
     <View style={styles.bar}>
       <Pressable style={styles.iconButton} onPress={onBack}>
@@ -25,6 +37,9 @@ export function HeaderBar({ nameL, nameR, sel, locked, display, onSelect, onSetD
       </Pressable>
 
       <Chip label={nameL} active={!locked && sel === "L"} onPress={() => onSelect("L")} />
+      <Pressable style={styles.swapSlotsButton} onPress={onSwapSlots}>
+        <Ionicons name="swap-horizontal-outline" size={14} color={color.text} />
+      </Pressable>
       <Chip label={nameR} active={!locked && sel === "R"} onPress={() => onSelect("R")} />
 
       <View style={styles.spacer} />
@@ -119,6 +134,7 @@ const styles = StyleSheet.create({
   chipNeutral: { backgroundColor: color.neutral800 },
   chipActive: { borderWidth: 1, borderColor: color.accent, backgroundColor: "transparent" },
   chipText: { fontSize: 11, color: color.neutral100 },
+  swapSlotsButton: { padding: 4 },
   spacer: { flex: 1 },
   segment: {
     flexDirection: "row",

@@ -42,6 +42,7 @@ type PlaybackSessionValue = {
   setDisplay: (mode: DisplayMode) => void;
   setOpacity: (n: number) => void;
   swapTop: () => void;
+  swapSlots: () => void;
   toggleLock: () => void;
   patchSlot: (slot: Slot, patch: Partial<SlotState>) => void;
   loadClip: (slot: Slot, clip: Clip, opts?: { keepFraming?: boolean }) => void;
@@ -95,6 +96,14 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
     setTop((t) => (t === "L" ? "R" : "L"));
   }, []);
 
+  // swaps the two slots' entire contents (clip, trim window, speed, zoom,
+  // pan) — a full trade of what's on the left vs. the right. `sel` and
+  // `top` stay put deliberately: they refer to a physical slot/position,
+  // not to whichever clip currently occupies it.
+  const swapSlots = useCallback(() => {
+    setClips((prev) => ({ L: prev.R, R: prev.L }));
+  }, []);
+
   const toggleLock = useCallback(() => {
     setLocked((l) => !l);
   }, []);
@@ -113,12 +122,13 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       setDisplay,
       setOpacity,
       swapTop,
+      swapSlots,
       toggleLock,
       patchSlot,
       loadClip,
       activeSlots,
     }),
-    [clips, locked, sel, display, opacity, top, swapTop, toggleLock, patchSlot, loadClip, activeSlots]
+    [clips, locked, sel, display, opacity, top, swapTop, swapSlots, toggleLock, patchSlot, loadClip, activeSlots]
   );
 
   return <PlaybackSessionContext.Provider value={value}>{children}</PlaybackSessionContext.Provider>;
