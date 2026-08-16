@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/refs -- see Stage.tsx */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View, type DimensionValue, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { color, radius, withAlpha } from "@/theme";
 
 type DragKind = "in" | "out" | "play";
@@ -40,8 +40,30 @@ export function TrimTrack({
 }: TrimTrackProps) {
   const [trackWidth, setTrackWidth] = useState(0);
   const kind = useRef<DragKind>("play");
+  const isDragging = useRef(false);
 
   const onTrackLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
+
+  // The playhead position ticks from a 70ms polling interval during
+  // playback, which reads as choppy if applied straight to layout — ease
+  // between samples instead so it reads as continuous motion. While
+  // dragging, or on a loop reset back to the trim-in point (playback only
+  // ever moves forward otherwise), skip the ease and snap instantly —
+  // easing a loop reset would look like the marker sliding backward across
+  // the whole timeline instead of restarting.
+  const playheadX = useSharedValue(playheadFrac);
+  const prevFrac = useRef(playheadFrac);
+  useEffect(() => {
+    const jumpedBack = playheadFrac < prevFrac.current - 0.001;
+    prevFrac.current = playheadFrac;
+    playheadX.value =
+      isDragging.current || jumpedBack
+        ? playheadFrac
+        : withTiming(playheadFrac, { duration: 90, easing: Easing.linear });
+  }, [playheadFrac, playheadX]);
+  const playheadStyle = useAnimatedStyle(() => ({
+    left: `${Math.max(0, Math.min(100, playheadX.value * 100))}%`,
+  }));
 
   const applyAt = (x: number) => {
     if (trackWidth <= 0) return;
@@ -57,8 +79,14 @@ export function TrimTrack({
   // ref and applyAt would never see it.
   const begin = (k: DragKind, x: number) => {
     kind.current = k;
+    isDragging.current = true;
     onScrubStart?.();
     applyAt(x);
+  };
+
+  const finalize = () => {
+    isDragging.current = false;
+    onScrubEnd?.();
   };
 
   const gesture = Gesture.Pan()
@@ -80,9 +108,7 @@ export function TrimTrack({
       runOnJS(begin)(k, e.x);
     })
     .onChange((e) => runOnJS(applyAt)(e.x))
-    .onFinalize(() => {
-      if (onScrubEnd) runOnJS(onScrubEnd)();
-    });
+    .onFinalize(() => runOnJS(finalize)());
 
   return (
     <View style={styles.row}>
@@ -99,7 +125,7 @@ export function TrimTrack({
           />
           {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -5 }]} />}
           {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -4 }]} />}
-          <View style={[styles.playhead, { left: pct(playheadFrac) }]} />
+          <Animated.View style={[styles.playhead, playheadStyle]} />
         </View>
       </GestureDetector>
       <Text style={styles.time} numberOfLines={1}>

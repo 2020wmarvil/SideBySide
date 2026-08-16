@@ -127,10 +127,12 @@ export function TransportBar({
         )}
 
         <View style={styles.trailingGroup}>
-          <Pressable style={styles.smallButton} onPress={onReplace}>
-            <Ionicons name="ellipse" size={12} color={color.text} />
-            <Text style={styles.smallButtonText}>{replaceLabel}</Text>
-          </Pressable>
+          {!locked && (
+            <Pressable style={styles.smallButton} onPress={onReplace}>
+              <Ionicons name="ellipse" size={12} color={color.text} />
+              <Text style={styles.smallButtonText}>{replaceLabel}</Text>
+            </Pressable>
+          )}
           <Pressable style={[styles.lockButton, locked && styles.lockButtonActive]} onPress={onLock}>
             <Ionicons name={locked ? "lock-closed" : "lock-open-outline"} size={16} color={locked ? color.stageBg : color.text} />
           </Pressable>
