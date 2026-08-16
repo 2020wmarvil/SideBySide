@@ -15,17 +15,21 @@ type Session = ReturnType<typeof usePlaybackSession>;
 
 const SLOTS: Slot[] = ["L", "R"];
 
+const TICK_MS = 70;
+
 // How far L and R are allowed to quietly drift apart, in seconds, before
-// the tick loop nudges the lagging one back up to match — independent
-// decode timing means they never drift in lockstep on their own.
+// the tick loop starts nudging the lagging one back up to match —
+// independent decode timing means they never drift in lockstep on their
+// own.
 const DRIFT_TOLERANCE = 0.08;
 
-// Even a "loose tolerance" corrective seek makes the decoder do work, so
-// checking for drift every 70ms tick but only ever *acting* on it this
-// rarely keeps corrections from becoming a steady drip of tiny stutters —
-// this is meant to stop drift from growing into something visible over a
-// whole clip, not to hold L/R pinned to each other frame-by-frame.
-const DRIFT_CORRECTION_INTERVAL_MS = 1000;
+// Rather than seek the lagging slot back in sync (a real decoder seek,
+// visible as a stutter even with a loose tolerance), briefly bump its
+// playbackRate so it catches up on its own — both players are muted (see
+// useSlotPlayer), so there's no pitch-shifted audio to give it away, and a
+// few-percent speed bump for under a second reads as nothing at all. Closes
+// a max-tolerance gap in under 1.5s at this boost.
+const CATCHUP_RATE_BOOST = 0.06;
 
 /**
  * Owns the two video players and drives them against the session's
@@ -44,7 +48,10 @@ export function usePlaybackEngine(session: Session) {
   const [pos, setPos] = useState<Record<Slot, number>>({ L: 0, R: 0 });
   const [toast, setToast] = useState("");
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastDriftCorrection = useRef(0);
+  // Slot currently mid-catch-up, and how much elapsed-time gap is left to
+  // close. Only one slot catches up at a time — the other is by definition
+  // the one it's catching up *to*.
+  const catchUp = useRef<Partial<Record<Slot, { remaining: number }>>>({});
 
   const playerFor = useCallback((slot: Slot) => (slot === "L" ? playerL : playerR), [playerL, playerR]);
   const durationFor = useCallback((slot: Slot) => (slot === "L" ? durationL : durationR), [durationL, durationR]);
@@ -122,22 +129,26 @@ export function usePlaybackEngine(session: Session) {
         // when it individually drifts lets L and R slowly fall out of sync
         // over many loops — resetting both in lockstep is the fix.
         const resetAll = session.locked && needsLoop;
+        // both sides are about to snap back to their window start together,
+        // which makes any in-progress catch-up moot.
+        if (resetAll) catchUp.current = {};
 
         // Mid-window drift correction: a loop-boundary reset re-syncs both
         // sides, but between boundaries nothing else keeps them together —
         // L and R can quietly fall out of step tick by tick. Catch that
         // early, every tick, rather than waiting for it to surface (e.g.
-        // when an overlay swap reveals it, or it simply grows large enough
-        // to notice). Skipped when a reset is already happening this tick,
-        // since that snaps both back to their window start together anyway.
-        let driftTarget: Partial<Record<Slot, number>> = {};
+        // when a swap reveals it, or it simply grows large enough to
+        // notice). Only start a new catch-up once any previous one has
+        // finished, and never while a loop-boundary reset already has both
+        // snapping back into sync this tick.
         if (
           !resetAll &&
           session.locked &&
           playing &&
           info.L &&
           info.R &&
-          Date.now() - lastDriftCorrection.current > DRIFT_CORRECTION_INTERVAL_MS
+          !catchUp.current.L &&
+          !catchUp.current.R
         ) {
           const elapsedL = info.L.t - info.L.start;
           const elapsedR = info.R.t - info.R.start;
@@ -148,9 +159,7 @@ export function usePlaybackEngine(session: Session) {
             // reads as it catching up; pulling the leader backward would
             // read as a rewind.
             const laggingSlot: Slot = diff > 0 ? "R" : "L";
-            const entry = info[laggingSlot]!;
-            driftTarget[laggingSlot] = entry.start + Math.min(Math.max(elapsedL, elapsedR), entry.len);
-            lastDriftCorrection.current = Date.now();
+            catchUp.current[laggingSlot] = { remaining: Math.min(Math.abs(diff), info[laggingSlot]!.len) };
           }
         }
 
@@ -159,8 +168,9 @@ export function usePlaybackEngine(session: Session) {
           if (!entry) return;
           const { start, len, d } = entry;
           let t = entry.t;
+          const player = playerFor(s);
+          const baseRate = Math.max(0.1, session.clips[s].speed);
           if (playing && (resetAll || t < start - 0.08 || t > start + len - 0.05)) {
-            const player = playerFor(s);
             t = start;
             // loop-restart seeks don't need frame accuracy, just to land
             // near the window start — an exact seek forces the decoder to
@@ -172,12 +182,19 @@ export function usePlaybackEngine(session: Session) {
             player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0.3 };
             player.currentTime = t;
             player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0 };
-          } else if (driftTarget[s] !== undefined) {
-            const player = playerFor(s);
-            t = driftTarget[s]!;
-            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0.3 };
-            player.currentTime = t;
-            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0 };
+            // in case a catch-up boost was still active the instant this
+            // reset fired — cleared above, but the player's actual rate
+            // needs restoring too, or it'd keep running fast forever.
+            player.playbackRate = baseRate;
+          } else if (playing && catchUp.current[s]) {
+            const catching = catchUp.current[s]!;
+            const boostedRate = baseRate * (1 + CATCHUP_RATE_BOOST);
+            player.playbackRate = boostedRate;
+            catching.remaining -= (boostedRate - baseRate) * (TICK_MS / 1000);
+            if (catching.remaining <= 0) {
+              delete catchUp.current[s];
+              player.playbackRate = baseRate;
+            }
           }
           const frac = t / d;
           if (next[s] !== frac) {
@@ -187,7 +204,7 @@ export function usePlaybackEngine(session: Session) {
         });
         return changed ? next : prev;
       });
-    }, 70);
+    }, TICK_MS);
     return () => clearInterval(id);
   }, [session.locked, session.clips, durationFor, playerFor, windowLen, playing]);
 
