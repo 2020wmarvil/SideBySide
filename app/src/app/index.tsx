@@ -97,8 +97,10 @@ export default function PlaybackScreen() {
   // Pan/pinch target whichever slot Stage resolved the touch to, not
   // session.activeSlots — framing a clip is a per-finger, per-clip action
   // and shouldn't be tied to which slot is selected for transport controls.
+  // No bumpChrome() here (or in handlePinchChange below): the chrome should
+  // only show/hide from an explicit tap, not as a side effect of framing a
+  // shot, which would otherwise flash the UI over every drag/pinch.
   const handlePan = (slot: Slot, dx: number, dy: number) => {
-    bumpChrome();
     // Functional patch, not a snapshot of session.clips[slot]: onChange
     // fires on every native touch-move, faster than this component can
     // re-render a fresh closure, so several calls can land before `c` here
@@ -124,7 +126,6 @@ export default function PlaybackScreen() {
     pinchBase.current[slot] = session.clips[slot].zoom;
   };
   const handlePinchChange = (slot: Slot, scale: number) => {
-    bumpChrome();
     session.patchSlot(slot, { zoom: Math.max(1, Math.min(3, pinchBase.current[slot] * scale)) });
   };
 
