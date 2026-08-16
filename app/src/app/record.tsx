@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -14,13 +15,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
-import * as ScreenOrientation from "expo-screen-orientation";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { persistRecording } from "@/data/recordings";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { useThumbnail } from "@/hooks/useThumbnail";
-import { useFreeOrientation } from "@/hooks/useFreeOrientation";
+import { usePortraitLock } from "@/hooks/usePortraitLock";
 import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { TagEditor } from "@/components/shared/TagEditor";
 import { slotName } from "@/lib/format";
@@ -32,27 +32,6 @@ type Phase = "ready" | "recording" | "review" | "tagging";
 // Below this width (portrait phones) the fixed-width preview column leaves
 // too little room for the tag form beside it — stack them instead.
 const WIDE_LAYOUT_MIN_WIDTH = 500;
-
-// Android's video encoder doesn't reliably tag a recording's rotation while
-// the screen orientation is left free (OrientationLock.ALL): it needs a
-// single definitive orientation at the moment recording starts, or the
-// clip comes out rotated regardless of which way the device was actually
-// held. Locking to the device's current orientation for the duration of
-// the take (like a native camera app, where only the preview keeps
-// rotating) works around this; the lock is freed back to ALL once the
-// take is done so the review controls can rotate again.
-const orientationLockFor: Partial<Record<ScreenOrientation.Orientation, ScreenOrientation.OrientationLock>> = {
-  [ScreenOrientation.Orientation.PORTRAIT_UP]: ScreenOrientation.OrientationLock.PORTRAIT_UP,
-  [ScreenOrientation.Orientation.PORTRAIT_DOWN]: ScreenOrientation.OrientationLock.PORTRAIT_DOWN,
-  [ScreenOrientation.Orientation.LANDSCAPE_LEFT]: ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
-  [ScreenOrientation.Orientation.LANDSCAPE_RIGHT]: ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
-};
-
-async function lockToCurrentOrientation() {
-  const current = await ScreenOrientation.getOrientationAsync();
-  const lock = orientationLockFor[current] ?? ScreenOrientation.OrientationLock.PORTRAIT_UP;
-  await ScreenOrientation.lockAsync(lock);
-}
 
 export default function RecordScreen() {
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
@@ -71,12 +50,21 @@ export default function RecordScreen() {
   const [phase, setPhase] = useState<Phase>("ready");
   const [elapsedTenths, setElapsedTenths] = useState(0);
   const [takeUri, setTakeUri] = useState<string | null>(null);
+  const [newClipTitle, setNewClipTitle] = useState("");
   const [newClipTags, setNewClipTags] = useState<string[]>([]);
 
   const takeThumb = useThumbnail(takeUri);
   const granted = !!permission?.granted && !!micPermission?.granted;
 
-  useFreeOrientation();
+  // Locked portrait for the whole flow, not just while composing: Android's
+  // video encoder doesn't reliably tag a recording's rotation across an
+  // orientation change mid-take, so the take needs to start and end without
+  // the screen ever having rotated. Fixing the screen to portrait for the
+  // full lifetime of this screen (matching Library/Import) sidesteps that
+  // rather than chasing it — this is a camera/trick-clip app built around
+  // portrait footage anyway (see useLandscapeLock, the one screen that
+  // isn't portrait).
+  usePortraitLock();
   useImmersiveNavBar();
 
   useEffect(() => {
@@ -89,13 +77,11 @@ export default function RecordScreen() {
 
   const startRecording = async () => {
     if (!cameraRef.current) return;
-    await lockToCurrentOrientation();
     setPhase("recording");
     setElapsedTenths(0);
     timerRef.current = setInterval(() => setElapsedTenths((n) => n + 1), 100);
     const result = await cameraRef.current.recordAsync();
     if (timerRef.current) clearInterval(timerRef.current);
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(() => {});
     if (result?.uri) {
       setTakeUri(result.uri);
       setPhase("review");
@@ -108,6 +94,7 @@ export default function RecordScreen() {
 
   const retake = () => {
     setTakeUri(null);
+    setNewClipTitle("");
     setNewClipTags([]);
     setPhase("ready");
   };
@@ -144,7 +131,7 @@ export default function RecordScreen() {
     addClip({
       id: `clip-${Date.now()}`,
       uri: persistedUri,
-      title: newClipTags.length ? newClipTags.join(" · ") : "Recorded clip",
+      title: newClipTitle.trim() || (newClipTags.length ? newClipTags.join(" · ") : "Recorded clip"),
       tags: newClipTags,
       createdAt: Date.now(),
       durationSec,
@@ -217,6 +204,21 @@ export default function RecordScreen() {
             <Text style={styles.fileMeta}>{durationSec.toFixed(1)}s recording</Text>
           </View>
           <View style={[styles.formCol, !isWide && styles.formColNarrow]}>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Name</Text>
+              <TextInput
+                style={styles.nameInput}
+                value={newClipTitle}
+                onChangeText={setNewClipTitle}
+                placeholder="Clip name"
+                placeholderTextColor={color.textFaint}
+                autoComplete="off"
+                autoCorrect={false}
+                spellCheck={false}
+                importantForAutofill="no"
+                returnKeyType="done"
+              />
+            </View>
             <TagEditor
               tags={newClipTags}
               onChange={setNewClipTags}
@@ -226,7 +228,7 @@ export default function RecordScreen() {
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, !isWide && styles.footerNarrow]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }, !isWide && styles.footerNarrow]}>
           <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
           <View style={[styles.footerButtons, !isWide && styles.footerButtonsNarrow]}>
             <Pressable style={styles.secondaryButton} onPress={() => setPhase("review")}>
@@ -422,8 +424,20 @@ const styles = StyleSheet.create({
   preview: { width: "100%", height: 150, borderRadius: radius.md },
   previewPlaceholder: { backgroundColor: color.neutral900, alignItems: "center", justifyContent: "center" },
   fileMeta: { fontSize: 11, color: color.textFaint },
-  formCol: { flex: 1, minWidth: 0, gap: space[2] },
+  formCol: { flex: 1, minWidth: 0, gap: space[3] },
   formColNarrow: { flex: undefined },
+  field: { gap: 5 },
+  fieldLabel: { fontSize: 12, color: withAlpha(color.text, 0.7) },
+  nameInput: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.divider,
+    backgroundColor: color.surface,
+    color: color.text,
+    fontSize: 13,
+  },
   footer: {
     flexDirection: "row",
     alignItems: "center",

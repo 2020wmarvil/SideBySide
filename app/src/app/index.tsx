@@ -15,8 +15,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
-import { allTags, filterClips } from "@/data/clipRepository";
+import { allTags, filterClips, tagCounts } from "@/data/clipRepository";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
+import { usePortraitLock } from "@/hooks/usePortraitLock";
 import { ClipCard } from "@/components/library/ClipCard";
 import { SelectionToolbar } from "@/components/library/SelectionToolbar";
 import { TagChip } from "@/components/library/TagChip";
@@ -30,6 +31,8 @@ import { color, radius, space, withAlpha } from "@/theme";
 const WIDE_LAYOUT_MIN_WIDTH = 500;
 
 export default function LibraryScreen() {
+  usePortraitLock();
+
   const { slot: replaceSlot } = useLocalSearchParams<{ slot?: Slot }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -50,6 +53,7 @@ export default function LibraryScreen() {
   const hasClips = clips.length > 0;
   const visible = filterClips(clips, search, tags);
   const tagList = allTags(clips);
+  const tagCountsMap = tagCounts(clips);
   const libTitle = tags.length ? tags.join(" + ") : "All clips";
   const pickedClip = clips.find((c) => c.id === pickId) ?? null;
   const selectionMode = selectedIds.size > 0;
@@ -331,10 +335,12 @@ export default function LibraryScreen() {
             <Text style={styles.pickTitle}>
               Edit tags · {selectedIds.size} clip{selectedIds.size === 1 ? "" : "s"}
             </Text>
-            <TagEditor tags={commonTags} onChange={applyTagChange} allTags={tagList} tagCounts={{}} />
-            <Pressable style={styles.pickButton} onPress={() => setEditingTags(false)}>
-              <Text style={styles.pickButtonText}>Done</Text>
-            </Pressable>
+            <TagEditor tags={commonTags} onChange={applyTagChange} allTags={tagList} tagCounts={tagCountsMap} />
+            <View style={styles.pickActions}>
+              <Pressable style={styles.pickButton} onPress={() => setEditingTags(false)}>
+                <Text style={styles.pickButtonText}>Done</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>

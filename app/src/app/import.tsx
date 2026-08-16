@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
 import { allTags, tagCounts } from "@/data/clipRepository";
 import { useThumbnail } from "@/hooks/useThumbnail";
+import { usePortraitLock } from "@/hooks/usePortraitLock";
 import { usePlaybackSession } from "@/state/PlaybackSessionContext";
 import { TagEditor } from "@/components/shared/TagEditor";
 import { slotName } from "@/lib/format";
@@ -37,6 +38,8 @@ function titleFromFileName(fileName?: string | null): string {
 const WIDE_LAYOUT_MIN_WIDTH = 500;
 
 export default function ImportScreen() {
+  usePortraitLock();
+
   const { slot } = useLocalSearchParams<{ slot?: Slot }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -130,28 +133,28 @@ export default function ImportScreen() {
           </Text>
           <Text style={styles.pickPromptBody}>
             {slot
-              ? "Choose a replacement clip from local storage, pick one already in your library, or record a new attempt now."
-              : "Choose a clip from local storage — screen recording, download, or anything already on the device."}
+              ? "Pick a replacement already in your library, choose one from local storage, or record a new attempt now."
+              : "Choose a clip from local storage or record something new."}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space[3], marginTop: 2 }}>
-            <Pressable style={styles.saveButton} onPress={pickVideo}>
-              <Text style={styles.saveButtonText}>Choose video</Text>
-            </Pressable>
             {slot && (
               <Pressable
                 style={styles.cancelButton}
                 onPress={() => router.push({ pathname: "/", params: { slot } })}
               >
-                <Text style={styles.cancelButtonText}>From library</Text>
+                <Text style={styles.cancelButtonText}>Library</Text>
               </Pressable>
             )}
+            <Pressable style={styles.saveButton} onPress={pickVideo}>
+              <Text style={styles.saveButtonText}>Local Storage</Text>
+            </Pressable>
             <Pressable
               style={styles.cancelButton}
               onPress={() =>
                 router.push(slot ? { pathname: "/record", params: { slot } } : { pathname: "/record" })
               }
             >
-              <Text style={styles.cancelButtonText}>Record instead</Text>
+              <Text style={styles.cancelButtonText}>Record</Text>
             </Pressable>
           </View>
         </View>
@@ -208,7 +211,7 @@ export default function ImportScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, !isWide && styles.footerNarrow]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }, !isWide && styles.footerNarrow]}>
         <Text style={styles.footerHint}>Mix trick, person, gym — no fixed fields.</Text>
         <View style={[styles.footerButtons, !isWide && styles.footerButtonsNarrow]}>
           <Pressable style={styles.cancelButton} onPress={() => router.replace(backTo)}>
