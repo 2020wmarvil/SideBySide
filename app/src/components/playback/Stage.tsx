@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import { runOnJS, useSharedValue } from "react-native-reanimated";
 import { VideoView, type VideoPlayer } from "expo-video";
 import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
@@ -19,9 +19,9 @@ type StageProps = {
   chrome: boolean;
   topInset: number;
   onTapStage: () => void;
-  onPan: (dx: number, dy: number) => void;
-  onPinchBegin: () => void;
-  onPinchChange: (scale: number) => void;
+  onPan: (slot: Slot, dx: number, dy: number) => void;
+  onPinchBegin: (slot: Slot) => void;
+  onPinchChange: (slot: Slot, scale: number) => void;
   onSelectSlot: (slot: Slot) => void;
   onReplace: (slot: Slot) => void;
 };
@@ -74,11 +74,38 @@ export function Stage({
       }
     });
 
-  const panGesture = Gesture.Pan().onChange((e) => runOnJS(onPan)(e.changeX, e.changeY));
+  // Pan/pinch target whichever clip is physically under the touch, not
+  // whichever slot is "selected" for transport controls — framing a clip
+  // should feel like touching it, independent of which one is wired up to
+  // the trim/scrub controls below. In side-by-side that's a left/right
+  // split by touch x; in overlay only the top pane is visible to touch, so
+  // it's always the target. The slot is resolved once per gesture (onBegin)
+  // and held in a UI-thread shared value so a finger drifting across the
+  // midline mid-drag doesn't retarget partway through.
+  const slotAt = (x: number): Slot => {
+    "worklet";
+    if (!side) return top;
+    if (stageWidth <= 0) return top;
+    return x < stageWidth / 2 ? "L" : "R";
+  };
+
+  const panSlot = useSharedValue<Slot>("L");
+  const pinchSlot = useSharedValue<Slot>("L");
+
+  const panGesture = Gesture.Pan()
+    .enabled(!locked)
+    .onBegin((e) => {
+      panSlot.value = slotAt(e.x);
+    })
+    .onChange((e) => runOnJS(onPan)(panSlot.value, e.changeX, e.changeY));
 
   const pinchGesture = Gesture.Pinch()
-    .onBegin(() => runOnJS(onPinchBegin)())
-    .onChange((e) => runOnJS(onPinchChange)(e.scale));
+    .enabled(!locked)
+    .onBegin((e) => {
+      pinchSlot.value = slotAt(e.focalX);
+      runOnJS(onPinchBegin)(pinchSlot.value);
+    })
+    .onChange((e) => runOnJS(onPinchChange)(pinchSlot.value, e.scale));
 
   const stageGesture = Gesture.Race(tapGesture, Gesture.Simultaneous(panGesture, pinchGesture));
 

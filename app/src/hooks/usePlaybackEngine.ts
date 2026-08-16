@@ -95,8 +95,12 @@ export function usePlaybackEngine(session: Session) {
           // upper bound uses a small tolerance (not a strict `>`) so a clip
           // that lands exactly on its window end (float precision, or a
           // window that runs to the very end of the source) still loops
-          // back instead of sitting stuck at the boundary forever.
-          if (t < start - 0.08 || t > start + len - 0.05) needsLoop = true;
+          // back instead of sitting stuck at the boundary forever. Gated on
+          // `playing` — otherwise a manual seek that lands exactly on the
+          // out point (e.g. releasing the trim-out handle) falls inside
+          // this same tolerance and gets mistaken for drift, snapping the
+          // playhead back to `in` right after the user let go.
+          if (playing && (t < start - 0.08 || t > start + len - 0.05)) needsLoop = true;
         });
 
         // when locked, a loop on either side restarts BOTH players together,
@@ -111,7 +115,7 @@ export function usePlaybackEngine(session: Session) {
           if (!entry) return;
           const { start, len, d } = entry;
           let t = entry.t;
-          if (resetAll || t < start - 0.08 || t > start + len - 0.05) {
+          if (playing && (resetAll || t < start - 0.08 || t > start + len - 0.05)) {
             const player = playerFor(s);
             t = start;
             // loop-restart seeks don't need frame accuracy, just to land
@@ -135,7 +139,7 @@ export function usePlaybackEngine(session: Session) {
       });
     }, 70);
     return () => clearInterval(id);
-  }, [session.locked, session.clips, durationFor, playerFor, windowLen]);
+  }, [session.locked, session.clips, durationFor, playerFor, windowLen, playing]);
 
   const applyPlayState = useCallback(
     (on: boolean) => {

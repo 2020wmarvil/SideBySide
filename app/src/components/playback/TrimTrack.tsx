@@ -22,7 +22,7 @@ type TrimTrackProps = {
   onScrubEnd?: () => void;
 };
 
-const HANDLE_HIT_RADIUS = 16;
+const HANDLE_HIT_RADIUS = 24;
 
 export function TrimTrack({
   label,
@@ -123,8 +123,8 @@ export function TrimTrack({
               { left: pct(inFrac), width: pct(Math.max(0, outFrac - inFrac)) },
             ]}
           />
-          {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -5 }]} />}
-          {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -4 }]} />}
+          {editable && <View style={[styles.handle, { left: pct(inFrac), marginLeft: -7 }]} />}
+          {editable && <View style={[styles.handle, { left: pct(outFrac), marginLeft: -7 }]} />}
           <Animated.View style={[styles.playhead, playheadStyle]} />
         </View>
       </GestureDetector>
@@ -165,9 +165,9 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: "absolute",
-    top: -3,
-    bottom: -3,
-    width: 9,
+    top: -4,
+    bottom: -4,
+    width: 14,
     borderRadius: radius.sm,
     backgroundColor: color.accent,
   },
