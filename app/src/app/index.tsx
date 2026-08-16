@@ -210,6 +210,8 @@ export default function PlaybackScreen() {
         opacity={session.opacity}
         sel={session.sel}
         locked={session.locked}
+        chrome={chrome}
+        topInset={insets.top}
         onTapStage={() => {
           if (chrome) hideChrome();
           else bumpChrome();
@@ -219,6 +221,10 @@ export default function PlaybackScreen() {
         onPinchBegin={handlePinchBegin}
         onPinchChange={handlePinchChange}
         onSelectSlot={handleSelectSlot}
+        onReplace={(slot) => {
+          if (session.locked) return;
+          router.push({ pathname: "/record", params: { slot } });
+        }}
       />
 
       {chrome && (
@@ -228,19 +234,10 @@ export default function PlaybackScreen() {
           onPress={hideChrome}
         >
           <HeaderBar
-            nameL={session.clips.L.title}
-            nameR={session.clips.R.title}
-            sel={session.sel}
-            locked={session.locked}
             display={session.display}
-            onReplace={(slot) => {
-              if (session.locked) return;
-              router.push({ pathname: "/record", params: { slot } });
-            }}
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}
-            onSwapSlots={session.swapSlots}
           />
           {triesOpen && (
             <TriesPanel
@@ -276,6 +273,7 @@ export default function PlaybackScreen() {
             onSpeedChange={setSpeed}
             onOpacityChange={session.setOpacity}
             onSwap={session.swapTop}
+            onSwapSlots={session.swapSlots}
             onLock={handleLock}
           />
         </View>

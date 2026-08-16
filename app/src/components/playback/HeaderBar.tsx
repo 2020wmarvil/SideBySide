@@ -1,46 +1,22 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import type { Slot } from "@/data/types";
 import type { DisplayMode } from "@/state/PlaybackSessionContext";
 import { color, radius, space, withAlpha } from "@/theme";
 
 type HeaderBarProps = {
-  nameL: string;
-  nameR: string;
-  sel: Slot;
-  locked: boolean;
   display: DisplayMode;
-  onReplace: (slot: Slot) => void;
   onSetDisplay: (mode: DisplayMode) => void;
   onBack: () => void;
   onTries: () => void;
-  onSwapSlots: () => void;
 };
 
-export function HeaderBar({
-  nameL,
-  nameR,
-  sel,
-  locked,
-  display,
-  onReplace,
-  onSetDisplay,
-  onBack,
-  onTries,
-  onSwapSlots,
-}: HeaderBarProps) {
+export function HeaderBar({ display, onSetDisplay, onBack, onTries }: HeaderBarProps) {
   return (
     <View style={styles.bar}>
       <Pressable style={styles.iconButton} onPress={onBack}>
         <Ionicons name="arrow-back" size={16} color={color.text} />
       </Pressable>
-
-      <Chip label={nameL} active={!locked && sel === "L"} onPress={() => onReplace("L")} />
-      <Pressable style={styles.swapSlotsButton} onPress={onSwapSlots}>
-        <Ionicons name="swap-horizontal-outline" size={14} color={color.text} />
-      </Pressable>
-      <Chip label={nameR} active={!locked && sel === "R"} onPress={() => onReplace("R")} />
 
       <View style={styles.spacer} />
 
@@ -65,16 +41,6 @@ export function HeaderBar({
         <Text style={styles.triesText}>Tries</Text>
       </Pressable>
     </View>
-  );
-}
-
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={[styles.chip, active ? styles.chipActive : styles.chipNeutral]} onPress={onPress}>
-      <Text style={[styles.chipText, active && { color: color.accent }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -125,16 +91,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  chip: {
-    maxWidth: 130,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-  },
-  chipNeutral: { backgroundColor: color.neutral800 },
-  chipActive: { borderWidth: 1, borderColor: color.accent, backgroundColor: "transparent" },
-  chipText: { fontSize: 11, color: color.neutral100 },
-  swapSlotsButton: { padding: 4 },
   spacer: { flex: 1 },
   segment: {
     flexDirection: "row",

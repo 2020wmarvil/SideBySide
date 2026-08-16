@@ -36,6 +36,7 @@ type TransportBarProps = {
   onSpeedChange: (n: number) => void;
   onOpacityChange: (n: number) => void;
   onSwap: () => void;
+  onSwapSlots: () => void;
   onLock: () => void;
 };
 
@@ -53,6 +54,7 @@ export function TransportBar({
   onSpeedChange,
   onOpacityChange,
   onSwap,
+  onSwapSlots,
   onLock,
 }: TransportBarProps) {
   return (
@@ -123,6 +125,9 @@ export function TransportBar({
         )}
 
         <View style={styles.trailingGroup}>
+          <Pressable style={styles.lockButton} onPress={onSwapSlots}>
+            <Ionicons name="swap-horizontal-outline" size={16} color={color.text} />
+          </Pressable>
           <Pressable style={[styles.lockButton, locked && styles.lockButtonActive]} onPress={onLock}>
             <Ionicons name={locked ? "lock-closed" : "lock-open-outline"} size={16} color={locked ? color.stageBg : color.text} />
           </Pressable>
@@ -162,11 +167,13 @@ const styles = StyleSheet.create({
   },
   stepGroup: { flexDirection: "row", gap: 3 },
   stepButton: {
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: withAlpha(color.text, 0.2),
     borderRadius: radius.md,
     paddingHorizontal: 12,
-    paddingVertical: 12,
   },
   stepText: { fontSize: 14, color: color.text },
   sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -178,6 +185,7 @@ const styles = StyleSheet.create({
     color: color.neutral300,
   },
   smallButton: {
+    height: 46,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -185,13 +193,12 @@ const styles = StyleSheet.create({
     borderColor: withAlpha(color.text, 0.2),
     borderRadius: radius.md,
     paddingHorizontal: 9,
-    paddingVertical: 5,
   },
   smallButtonText: { fontSize: 11, color: color.text },
   trailingGroup: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 },
   lockButton: {
-    width: 34,
-    height: 34,
+    width: 46,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,

@@ -1,10 +1,16 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { VideoView, type VideoPlayer } from "expo-video";
 import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
 import { color, radius, withAlpha } from "@/theme";
+
+// Approximate rendered height of HeaderBar (iconButton height + its
+// vertical padding) — used to clear the header when placing the name/
+// replace badges below it, without needing an onLayout round-trip.
+const HEADER_HEIGHT = 48;
 
 type StageProps = {
   playerL: VideoPlayer;
@@ -15,11 +21,14 @@ type StageProps = {
   opacity: number;
   sel: Slot;
   locked: boolean;
+  chrome: boolean;
+  topInset: number;
   onTapStage: () => void;
   onPan: (dx: number, dy: number) => void;
   onPinchBegin: () => void;
   onPinchChange: (scale: number) => void;
   onSelectSlot: (slot: Slot) => void;
+  onReplace: (slot: Slot) => void;
 };
 
 export function Stage({
@@ -31,12 +40,18 @@ export function Stage({
   opacity,
   sel,
   locked,
+  chrome,
+  topInset,
   onTapStage,
   onPan,
   onPinchBegin,
   onPinchChange,
   onSelectSlot,
+  onReplace,
 }: StageProps) {
+  const [stageWidth, setStageWidth] = useState(0);
+  const side = display === "side";
+
   // onBegin/onChange/onEnd run as UI-thread worklets (auto-workletized by
   // the gesture builder methods) — the prop callbacks are plain JS
   // closures, so they must cross back via runOnJS or they throw.
@@ -54,8 +69,14 @@ export function Stage({
   // meant a too-long hold called onTapStage once when it timed out.
   const tapGesture = Gesture.Tap()
     .maxDistance(10)
-    .onEnd((_e, success) => {
-      if (success) runOnJS(onTapStage)();
+    .onEnd((e, success) => {
+      if (!success) return;
+      runOnJS(onTapStage)();
+      // Only side-by-side mode has a meaningful left/right split to select
+      // from — overlay mode's panes are both full-width and stacked.
+      if (side && stageWidth > 0) {
+        runOnJS(onSelectSlot)(e.x < stageWidth / 2 ? "L" : "R");
+      }
     });
 
   const panGesture = Gesture.Pan().onChange((e) => runOnJS(onPan)(e.changeX, e.changeY));
@@ -66,7 +87,6 @@ export function Stage({
 
   const stageGesture = Gesture.Race(tapGesture, Gesture.Simultaneous(panGesture, pinchGesture));
 
-  const side = display === "side";
   const showSelection = side && !locked;
 
   const paneStyle = (slot: Slot) => {
@@ -92,8 +112,10 @@ export function Stage({
     return { transform: [{ scale: c.zoom }, { translateX: c.px }, { translateY: c.py }] };
   };
 
+  const onStageLayout = (e: LayoutChangeEvent) => setStageWidth(e.nativeEvent.layout.width);
+
   return (
-    <View style={styles.stage}>
+    <View style={styles.stage} onLayout={onStageLayout}>
       {(["L", "R"] as Slot[]).map((slot) => (
         <View
           key={slot}
@@ -129,22 +151,30 @@ export function Stage({
 
       {/* Rendered above tapLayer (which sits at a higher zIndex than the
           panes) so these can actually receive taps instead of the stage's
-          own tap/pan/pinch gesture swallowing them first. */}
-      {(["L", "R"] as Slot[]).map((slot, i) => (
-        <Pressable
-          key={slot}
-          style={[
-            styles.slotTag,
-            side ? (slot === "L" ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8, top: 8 + i * 26 },
-            !locked && sel === slot && styles.slotTagActive,
-          ]}
-          onPress={() => !locked && onSelectSlot(slot)}
-        >
-          <Text style={styles.slotTagText} numberOfLines={1}>
-            {clips[slot].title || slot}
-          </Text>
-        </Pressable>
-      ))}
+          own tap/pan/pinch gesture swallowing them first. Tapping the name
+          replaces that clip; selecting which slot is active happens by
+          tapping either half of the video instead (see tapGesture above).
+          Only shown alongside the rest of the chrome (header/transport bar)
+          — sitting right under the header, not fixed to the video's own
+          top edge — so they don't compete for taps with the header when
+          both are up, and read as part of the same UI overlay. */}
+      {chrome &&
+        (["L", "R"] as Slot[]).map((slot, i) => (
+          <Pressable
+            key={slot}
+            style={[
+              styles.slotTag,
+              { top: topInset + HEADER_HEIGHT + 8 + (side ? 0 : i * 26) },
+              side ? (slot === "L" ? { left: 8 } : { left: "50%", marginLeft: 8 }) : { left: 8 },
+              !locked && sel === slot && styles.slotTagActive,
+            ]}
+            onPress={() => !locked && onReplace(slot)}
+          >
+            <Text style={styles.slotTagText} numberOfLines={1}>
+              {clips[slot].title || slot}
+            </Text>
+          </Pressable>
+        ))}
     </View>
   );
 }
