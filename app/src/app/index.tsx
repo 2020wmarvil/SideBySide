@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -182,7 +183,7 @@ export default function LibraryScreen() {
         <>
           <View style={styles.sidebar}>
             <View style={styles.brand}>
-              <Ionicons name="disc-outline" size={16} color={color.accent} />
+              <Image source={require("../../assets/images/icon.png")} style={styles.brandIcon} />
               <Text style={styles.brandText}>Side By Side</Text>
             </View>
 
@@ -229,7 +230,7 @@ export default function LibraryScreen() {
         <>
           <View style={styles.narrowHeader}>
             <View style={styles.brand}>
-              <Ionicons name="disc-outline" size={16} color={color.accent} />
+              <Image source={require("../../assets/images/icon.png")} style={styles.brandIcon} />
               <Text style={styles.brandText}>Side By Side</Text>
             </View>
             <View style={styles.narrowHeaderActions}>
@@ -396,6 +397,7 @@ const styles = StyleSheet.create({
     borderRightColor: color.divider,
   },
   brand: { flexDirection: "row", alignItems: "center", gap: 6 },
+  brandIcon: { width: 18, height: 18, borderRadius: radius.sm },
   brandText: { fontWeight: "500", fontSize: 15, color: color.text },
   narrowHeader: {
     paddingHorizontal: 14,

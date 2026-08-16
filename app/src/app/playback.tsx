@@ -102,36 +102,20 @@ export default function PlaybackScreen() {
   // Pan/pinch target whichever slot Stage resolved the touch to, not
   // session.activeSlots — framing a clip is a per-finger, per-clip action
   // and shouldn't be tied to which slot is selected for transport controls.
-  // No bumpChrome() here (or in handlePinchChange below): the chrome should
+  // No bumpChrome() here (or in handlePinchEnd below): the chrome should
   // only show/hide from an explicit tap, not as a side effect of framing a
   // shot, which would otherwise flash the UI over every drag/pinch.
-  const handlePan = (slot: Slot, dx: number, dy: number) => {
-    // Functional patch, not a snapshot of session.clips[slot]: onChange
-    // fires on every native touch-move, faster than this component can
-    // re-render a fresh closure, so several calls can land before `c` here
-    // would update — computing off a stale `c.px` drops deltas and reads as
-    // lag/jitter. Reading prev inside the updater keeps every delta.
-    session.patchSlot(slot, (prev) => ({
-      px: Math.max(-60, Math.min(60, prev.px + dx)),
-      py: Math.max(-60, Math.min(60, prev.py + dy)),
-    }));
+  //
+  // Stage drives the live drag/pinch entirely on the UI thread via
+  // reanimated shared values and only calls back here once, when the
+  // gesture ends — committing every intermediate touch-move into session
+  // state (and the React re-render that comes with it) was what made
+  // panning/zooming feel laggy.
+  const handlePanEnd = (slot: Slot, px: number, py: number) => {
+    session.patchSlot(slot, { px, py });
   };
-
-  // pinch's `scale` is cumulative since the gesture began, so the zoom the
-  // touched slot had at that moment is captured once in onPinchBegin and
-  // every onPinchChange event multiplies from that fixed base — not the
-  // previous event's zoom, which would compound the scale factor every
-  // frame.
-  const pinchBase = useRef<Record<Slot, number>>({ L: 1, R: 1 });
-  const handlePinchBegin = (slot: Slot) => {
-    // Not bumpChrome() here: Pinch's onBegin fires the moment any single
-    // finger starts tracking, before it's known whether a second finger
-    // will actually join — including for a plain tap. Bumping here raced
-    // with the tap gesture's own show/hide toggle and caused a flicker.
-    pinchBase.current[slot] = session.clips[slot].zoom;
-  };
-  const handlePinchChange = (slot: Slot, scale: number) => {
-    session.patchSlot(slot, { zoom: Math.max(1, Math.min(3, pinchBase.current[slot] * scale)) });
+  const handlePinchEnd = (slot: Slot, zoom: number) => {
+    session.patchSlot(slot, { zoom });
   };
 
   const handleSelectSlot = (slot: Slot) => {
@@ -257,9 +241,8 @@ export default function PlaybackScreen() {
           else bumpChrome();
           setTriesOpen(false);
         }}
-        onPan={handlePan}
-        onPinchBegin={handlePinchBegin}
-        onPinchChange={handlePinchChange}
+        onPanEnd={handlePanEnd}
+        onPinchEnd={handlePinchEnd}
         onSelectSlot={handleSelectSlot}
         onReplace={handleReplace}
       />

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS, useSharedValue } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { VideoView, type VideoPlayer } from "expo-video";
 import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
@@ -19,11 +19,19 @@ type StageProps = {
   chrome: boolean;
   topInset: number;
   onTapStage: () => void;
-  onPan: (slot: Slot, dx: number, dy: number) => void;
-  onPinchBegin: (slot: Slot) => void;
-  onPinchChange: (slot: Slot, scale: number) => void;
+  onPanEnd: (slot: Slot, px: number, py: number) => void;
+  onPinchEnd: (slot: Slot, zoom: number) => void;
   onSelectSlot: (slot: Slot) => void;
   onReplace: (slot: Slot) => void;
+};
+
+const clampPx = (v: number) => {
+  "worklet";
+  return Math.max(-60, Math.min(60, v));
+};
+const clampZoom = (v: number) => {
+  "worklet";
+  return Math.max(1, Math.min(3, v));
 };
 
 export function Stage({
@@ -38,14 +46,51 @@ export function Stage({
   chrome,
   topInset,
   onTapStage,
-  onPan,
-  onPinchBegin,
-  onPinchChange,
+  onPanEnd,
+  onPinchEnd,
   onSelectSlot,
   onReplace,
 }: StageProps) {
   const [stageWidth, setStageWidth] = useState(0);
   const side = display === "side";
+
+  // Live framing lives on the UI thread, not in React state — a drag/pinch
+  // fires onChange dozens of times a second, and routing each of those
+  // through runOnJS into session state re-rendered the whole playback
+  // screen (context consumers, both VideoViews, chrome) on every touch-move,
+  // which is what made panning/zooming feel laggy. These shared values are
+  // the actual source of truth while a gesture is active; session.clips is
+  // only resynced once, when the gesture ends, purely for persistence (trim
+  // track, pinch-base-on-next-gesture, etc).
+  const framing = {
+    L: {
+      px: useSharedValue(clips.L.px),
+      py: useSharedValue(clips.L.py),
+      zoom: useSharedValue(clips.L.zoom),
+    },
+    R: {
+      px: useSharedValue(clips.R.px),
+      py: useSharedValue(clips.R.py),
+      zoom: useSharedValue(clips.R.zoom),
+    },
+  };
+
+  // Resync from session state whenever it changes for a reason other than
+  // our own gesture-end commit below (a fresh clip load, or a keepFraming
+  // reset) — harmless no-op when it *is* our own commit, since the shared
+  // value already holds that exact number.
+  useEffect(() => {
+    framing.L.px.value = clips.L.px;
+    framing.L.py.value = clips.L.py;
+    framing.L.zoom.value = clips.L.zoom;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clips.L.px, clips.L.py, clips.L.zoom]);
+  useEffect(() => {
+    framing.R.px.value = clips.R.px;
+    framing.R.py.value = clips.R.py;
+    framing.R.zoom.value = clips.R.zoom;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clips.R.px, clips.R.py, clips.R.zoom]);
 
   // Pan/pinch target whichever clip is physically under the touch, not
   // whichever slot is "selected" for transport controls — framing a clip
@@ -94,21 +139,41 @@ export function Stage({
 
   const panSlot = useSharedValue<Slot>("L");
   const pinchSlot = useSharedValue<Slot>("L");
+  // Captured once in onBegin (see usePlaybackEngine-style comment below):
+  // pinch's `scale` is cumulative since the gesture began, so the zoom the
+  // touched slot had at that moment is the fixed base every onChange
+  // multiplies from — not the previous event's zoom, which would compound
+  // the scale factor every frame.
+  const pinchBaseZoom = useSharedValue(1);
 
   const panGesture = Gesture.Pan()
     .enabled(!locked)
     .onBegin((e) => {
       panSlot.value = slotAt(e.x);
     })
-    .onChange((e) => runOnJS(onPan)(panSlot.value, e.changeX, e.changeY));
+    .onChange((e) => {
+      const f = framing[panSlot.value];
+      f.px.value = clampPx(f.px.value + e.changeX);
+      f.py.value = clampPx(f.py.value + e.changeY);
+    })
+    .onEnd(() => {
+      const s = panSlot.value;
+      runOnJS(onPanEnd)(s, framing[s].px.value, framing[s].py.value);
+    });
 
   const pinchGesture = Gesture.Pinch()
     .enabled(!locked)
     .onBegin((e) => {
       pinchSlot.value = slotAt(e.focalX);
-      runOnJS(onPinchBegin)(pinchSlot.value);
+      pinchBaseZoom.value = framing[pinchSlot.value].zoom.value;
     })
-    .onChange((e) => runOnJS(onPinchChange)(pinchSlot.value, e.scale));
+    .onChange((e) => {
+      framing[pinchSlot.value].zoom.value = clampZoom(pinchBaseZoom.value * e.scale);
+    })
+    .onEnd(() => {
+      const s = pinchSlot.value;
+      runOnJS(onPinchEnd)(s, framing[s].zoom.value);
+    });
 
   const stageGesture = Gesture.Race(tapGesture, Gesture.Simultaneous(panGesture, pinchGesture));
 
@@ -132,20 +197,28 @@ export function Stage({
     } as const;
   };
 
-  const videoTransform = (slot: Slot) => {
-    const c = clips[slot];
-    // Mirror first, while still in the video's own local space — flipping
-    // after translate/pan would mirror the pan offset too, reversing which
-    // way a drag moves the frame once a clip is mirrored.
-    return {
-      transform: [
-        { scaleX: c.mirrored ? -1 : 1 },
-        { scale: c.zoom },
-        { translateX: c.px },
-        { translateY: c.py },
-      ],
-    };
-  };
+  // Mirror first, while still in the video's own local space — flipping
+  // after translate/pan would mirror the pan offset too, reversing which
+  // way a drag moves the frame once a clip is mirrored. Driven by the
+  // shared values above (not clips[slot] directly) so a drag/pinch updates
+  // the pane on the UI thread with zero JS re-renders in the loop.
+  const styleL = useAnimatedStyle(() => ({
+    transform: [
+      { scaleX: clips.L.mirrored ? -1 : 1 },
+      { scale: framing.L.zoom.value },
+      { translateX: framing.L.px.value },
+      { translateY: framing.L.py.value },
+    ],
+  }));
+  const styleR = useAnimatedStyle(() => ({
+    transform: [
+      { scaleX: clips.R.mirrored ? -1 : 1 },
+      { scale: framing.R.zoom.value },
+      { translateX: framing.R.px.value },
+      { translateY: framing.R.py.value },
+    ],
+  }));
+  const videoStyle = (slot: Slot) => (slot === "L" ? styleL : styleR);
 
   const onStageLayout = (e: LayoutChangeEvent) => setStageWidth(e.nativeEvent.layout.width);
 
@@ -165,16 +238,19 @@ export function Stage({
           // (and clip) it as one flattened layer instead.
           renderToHardwareTextureAndroid
         >
-          <VideoView
-            player={slot === "L" ? playerL : playerR}
-            style={[StyleSheet.absoluteFill, videoTransform(slot)]}
-            contentFit="contain"
-            nativeControls={false}
-            // Android's default SurfaceView renders on its own compositor
-            // layer and ignores the pane's overflow:hidden clip once zoomed
-            // — textureView participates in normal view clipping instead.
-            surfaceType="textureView"
-          />
+          <Animated.View style={[StyleSheet.absoluteFill, videoStyle(slot)]}>
+            <VideoView
+              player={slot === "L" ? playerL : playerR}
+              style={StyleSheet.absoluteFill}
+              contentFit="contain"
+              nativeControls={false}
+              // Android's default SurfaceView renders on its own compositor
+              // layer and ignores the pane's overflow:hidden clip once
+              // zoomed — textureView participates in normal view clipping
+              // instead.
+              surfaceType="textureView"
+            />
+          </Animated.View>
         </View>
       ))}
 
