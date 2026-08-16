@@ -17,6 +17,7 @@ export type TrackRow = {
   onSetOut: (frac: number) => void;
   onScrub: (frac: number) => void;
   onScrubStart: () => void;
+  onScrubEnd: () => void;
 };
 
 type TransportBarProps = {
@@ -78,6 +79,7 @@ export function TransportBar({
           onSetOut={t.onSetOut}
           onScrub={t.onScrub}
           onScrubStart={t.onScrubStart}
+          onScrubEnd={t.onScrubEnd}
         />
       ))}
 

@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View, type DimensionValue, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { color, radius, withAlpha } from "@/theme";
 
 type DragKind = "in" | "out" | "play";
@@ -18,6 +19,7 @@ type TrimTrackProps = {
   onSetOut?: (frac: number) => void;
   onScrub?: (frac: number) => void;
   onScrubStart?: () => void;
+  onScrubEnd?: () => void;
 };
 
 const HANDLE_HIT_RADIUS = 16;
@@ -34,6 +36,7 @@ export function TrimTrack({
   onSetOut,
   onScrub,
   onScrubStart,
+  onScrubEnd,
 }: TrimTrackProps) {
   const [trackWidth, setTrackWidth] = useState(0);
   const kind = useRef<DragKind>("play");
@@ -48,22 +51,38 @@ export function TrimTrack({
     else onScrub?.(frac);
   };
 
+  // Runs on the JS thread (called via runOnJS below) so the write to
+  // kind.current here is the same copy applyAt() reads later — a worklet
+  // mutating kind.current would only touch its own UI-thread copy of the
+  // ref and applyAt would never see it.
+  const begin = (k: DragKind, x: number) => {
+    kind.current = k;
+    onScrubStart?.();
+    applyAt(x);
+  };
+
   const gesture = Gesture.Pan()
     .minDistance(0)
     .onBegin((e) => {
+      let k: DragKind;
       if (trackWidth <= 0) {
-        kind.current = "play";
+        k = "play";
       } else if (editable && Math.abs(e.x - inFrac * trackWidth) <= HANDLE_HIT_RADIUS) {
-        kind.current = "in";
+        k = "in";
       } else if (editable && Math.abs(e.x - outFrac * trackWidth) <= HANDLE_HIT_RADIUS) {
-        kind.current = "out";
+        k = "out";
       } else {
-        kind.current = "play";
+        k = "play";
       }
-      if (kind.current === "play") onScrubStart?.();
-      applyAt(e.x);
+      // onBegin/onChange/onFinalize run as UI-thread worklets (auto-workletized
+      // by the gesture builder methods) — the prop callbacks below are plain JS
+      // closures, so they must cross back via runOnJS or they throw.
+      runOnJS(begin)(k, e.x);
     })
-    .onChange((e) => applyAt(e.x));
+    .onChange((e) => runOnJS(applyAt)(e.x))
+    .onFinalize(() => {
+      if (onScrubEnd) runOnJS(onScrubEnd)();
+    });
 
   return (
     <View style={styles.row}>

@@ -133,6 +133,18 @@ export function usePlaybackEngine(session: Session) {
     [durationFor, playerFor]
   );
 
+  // Scrubbing mode trades buffering for seek latency so currentTime writes
+  // during a drag actually paint each intermediate frame instead of only
+  // settling on the last one once the finger stops moving.
+  const setScrubbing = useCallback(
+    (on: boolean) => {
+      SLOTS.forEach((s) => {
+        playerFor(s).scrubbingModeOptions = { scrubbingModeEnabled: on };
+      });
+    },
+    [playerFor]
+  );
+
   const togglePlay = useCallback(() => applyPlayState(!playing), [applyPlayState, playing]);
   const pause = useCallback(() => applyPlayState(false), [applyPlayState]);
 
@@ -187,6 +199,7 @@ export function usePlaybackEngine(session: Session) {
     togglePlay,
     pause,
     seek,
+    setScrubbing,
     step,
     setSpeed,
     setZoom,

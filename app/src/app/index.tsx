@@ -52,6 +52,7 @@ export default function PlaybackScreen() {
     togglePlay,
     pause,
     seek,
+    setScrubbing,
     step,
     setSpeed,
     setZoom,
@@ -108,10 +109,22 @@ export default function PlaybackScreen() {
       outFrac: c.out,
       playheadFrac: pos[slot],
       timeText: formatTime(duration, c.in, c.out, pos[slot]),
-      onSetIn: (frac) => session.patchSlot(slot, { in: Math.min(frac, c.out - 0.05) }),
-      onSetOut: (frac) => session.patchSlot(slot, { out: Math.max(frac, c.in + 0.05) }),
+      onSetIn: (frac) => {
+        const next = Math.min(frac, c.out - 0.05);
+        session.patchSlot(slot, { in: next });
+        seek(slot, next);
+      },
+      onSetOut: (frac) => {
+        const next = Math.max(frac, c.in + 0.05);
+        session.patchSlot(slot, { out: next });
+        seek(slot, next);
+      },
       onScrub: (frac) => seek(slot, frac),
-      onScrubStart: pause,
+      onScrubStart: () => {
+        pause();
+        setScrubbing(true);
+      },
+      onScrubEnd: () => setScrubbing(false),
     };
   };
 
@@ -132,7 +145,9 @@ export default function PlaybackScreen() {
       },
     ];
   } else {
-    tracks = [trackFor("L", "Clip L"), trackFor("R", "Clip R")];
+    // only the selected clip's controls are live when unlocked, so only its
+    // timeline needs to be on screen — showing both just eats space.
+    tracks = [trackFor(session.sel, session.sel === "L" ? "Clip L" : "Clip R")];
   }
 
   return (

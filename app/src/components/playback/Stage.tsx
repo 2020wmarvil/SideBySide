@@ -7,6 +7,7 @@
 import { useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { VideoView, type VideoPlayer } from "expo-video";
 import type { Slot } from "@/data/types";
 import type { DisplayMode, SlotState } from "@/state/PlaybackSessionContext";
@@ -43,21 +44,24 @@ export function Stage({
 }: StageProps) {
   const moved = useRef(false);
 
+  // onBegin/onChange/onEnd run as UI-thread worklets (auto-workletized by
+  // the gesture builder methods) — the prop callbacks are plain JS
+  // closures, so they must cross back via runOnJS or they throw.
   const panGesture = Gesture.Pan()
     .onBegin(() => {
       moved.current = false;
     })
     .onChange((e) => {
       moved.current = moved.current || Math.abs(e.changeX) + Math.abs(e.changeY) > 5;
-      onPan(e.changeX, e.changeY);
+      runOnJS(onPan)(e.changeX, e.changeY);
     })
     .onEnd(() => {
-      if (!moved.current) onTapStage();
+      if (!moved.current) runOnJS(onTapStage)();
     });
 
   const pinchGesture = Gesture.Pinch()
-    .onBegin(() => onPinchBegin())
-    .onChange((e) => onPinchChange(e.scale));
+    .onBegin(() => runOnJS(onPinchBegin)())
+    .onChange((e) => runOnJS(onPinchChange)(e.scale));
 
   const stageGesture = Gesture.Simultaneous(panGesture, pinchGesture);
 
@@ -97,12 +101,21 @@ export function Stage({
             paneStyle(slot),
             showSelection && sel === slot ? styles.paneSelected : null,
           ]}
+          // A zoomed VideoView is a hardware-accelerated surface that can
+          // paint outside a plain overflow:hidden clip on Android — forcing
+          // this pane onto its own offscreen texture makes the OS composite
+          // (and clip) it as one flattened layer instead.
+          renderToHardwareTextureAndroid
         >
           <VideoView
             player={slot === "L" ? playerL : playerR}
             style={[StyleSheet.absoluteFill, videoTransform(slot)]}
             contentFit="contain"
             nativeControls={false}
+            // Android's default SurfaceView renders on its own compositor
+            // layer and ignores the pane's overflow:hidden clip once zoomed
+            // — textureView participates in normal view clipping instead.
+            surfaceType="textureView"
           />
           <View style={styles.slotTag}>
             <Text style={styles.slotTagText}>{slot}</Text>
@@ -129,6 +142,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
+    overflow: "hidden",
   },
   paneSelected: {
     borderWidth: 2,
