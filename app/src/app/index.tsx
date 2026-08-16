@@ -72,12 +72,16 @@ export default function PlaybackScreen() {
     : [];
 
   const handlePan = (dx: number, dy: number) => {
+    // Functional patch, not a snapshot of session.clips[s]: onChange fires
+    // on every native touch-move, faster than this component can re-render
+    // a fresh closure, so several calls can land before `c` here would
+    // update — computing off a stale `c.px` drops deltas and reads as lag/
+    // jitter. Reading prev inside the updater keeps every delta.
     session.activeSlots.forEach((s) => {
-      const c = session.clips[s];
-      session.patchSlot(s, {
-        px: Math.max(-60, Math.min(60, c.px + dx / 4)),
-        py: Math.max(-60, Math.min(60, c.py + dy / 4)),
-      });
+      session.patchSlot(s, (prev) => ({
+        px: Math.max(-60, Math.min(60, prev.px + dx)),
+        py: Math.max(-60, Math.min(60, prev.py + dy)),
+      }));
     });
   };
 
@@ -178,7 +182,11 @@ export default function PlaybackScreen() {
             sel={session.sel}
             locked={session.locked}
             display={session.display}
-            onSelect={(slot) => !session.locked && session.setSel(slot)}
+            onSelect={(slot) => {
+              if (session.locked || slot === session.sel) return;
+              pause();
+              session.setSel(slot);
+            }}
             onSetDisplay={session.setDisplay}
             onBack={() => router.push("/library")}
             onTries={() => setTriesOpen((v) => !v)}
@@ -205,7 +213,6 @@ export default function PlaybackScreen() {
             tracks={tracks}
             playing={playing}
             speed={activeClip.speed}
-            speedText={`${activeClip.speed.toFixed(2).replace(/0$/, "")}×`}
             zoom={activeClip.zoom}
             overlayMode={session.display === "overlay"}
             opacity={session.opacity}

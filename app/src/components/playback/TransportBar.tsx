@@ -20,11 +20,12 @@ export type TrackRow = {
   onScrubEnd: () => void;
 };
 
+const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1] as const;
+
 type TransportBarProps = {
   tracks: TrackRow[];
   playing: boolean;
   speed: number;
-  speedText: string;
   zoom: number;
   overlayMode: boolean;
   opacity: number;
@@ -46,7 +47,6 @@ export function TransportBar({
   tracks,
   playing,
   speed,
-  speedText,
   zoom,
   overlayMode,
   opacity,
@@ -98,18 +98,18 @@ export function TransportBar({
 
         <View style={styles.sliderGroup}>
           <Ionicons name="speedometer-outline" size={14} color={color.neutral400} />
-          <Slider
-            style={styles.slider}
-            minimumValue={0.1}
-            maximumValue={1}
-            step={0.05}
-            value={speed}
-            onValueChange={onSpeedChange}
-            disabled={!controlsEnabled}
-            minimumTrackTintColor={color.accent}
-            maximumTrackTintColor={withAlpha(color.text, 0.2)}
-          />
-          <Text style={styles.sliderValue}>{speedText}</Text>
+          <View style={styles.stepGroup}>
+            {SPEED_OPTIONS.map((n) => (
+              <Pressable
+                key={n}
+                style={[styles.stepButton, speed === n && styles.stepButtonActive]}
+                onPress={() => onSpeedChange(n)}
+                disabled={!controlsEnabled}
+              >
+                <Text style={[styles.stepText, speed === n && styles.stepTextActive]}>{n}×</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.sliderGroup}>
@@ -201,6 +201,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   stepText: { fontSize: 11, color: color.text },
+  stepButtonActive: { backgroundColor: color.accent, borderColor: color.accent },
+  stepTextActive: { color: color.stageBg },
   sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
   slider: { width: 78, height: 24 },
   sliderSmall: { width: 64, height: 24 },

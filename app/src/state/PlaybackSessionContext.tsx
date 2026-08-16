@@ -44,7 +44,7 @@ type PlaybackSessionValue = {
   swapTop: () => void;
   swapSlots: () => void;
   toggleLock: () => void;
-  patchSlot: (slot: Slot, patch: Partial<SlotState>) => void;
+  patchSlot: (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => void;
   loadClip: (slot: Slot, clip: Clip, opts?: { keepFraming?: boolean }) => void;
 
   /** Which slot(s) respond to transport controls right now. */
@@ -64,9 +64,15 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   const [opacity, setOpacity] = useState(0.5);
   const [top, setTop] = useState<Slot>("R");
 
-  const patchSlot = useCallback((slot: Slot, patch: Partial<SlotState>) => {
-    setClips((prev) => ({ ...prev, [slot]: { ...prev[slot], ...patch } }));
-  }, []);
+  const patchSlot = useCallback(
+    (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => {
+      setClips((prev) => ({
+        ...prev,
+        [slot]: { ...prev[slot], ...(typeof patch === "function" ? patch(prev[slot]) : patch) },
+      }));
+    },
+    []
+  );
 
   const loadClip = useCallback(
     (slot: Slot, clip: Clip, opts?: { keepFraming?: boolean }) => {
