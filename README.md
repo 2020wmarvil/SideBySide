@@ -19,7 +19,7 @@ Scan the QR code with [Expo Go](https://expo.dev/go) on an Android device — An
 
 ## What it does
 
-**Playback** is the core screen. Load a clip into the left and right slots, trim each independently by dragging the in/out handles or scrubbing the track, set playback speed (0.1–1×), and zoom (slider or pinch) and pan (drag) each clip to frame the trick. Lock the timeline to play, scrub, step, and pan both clips together, looping at the shorter of the two windows. Switch between side-by-side and overlay display — overlay adds an opacity slider and a top/bottom swap — or swap which clip is on the left vs. right entirely. Jump between tagged "tries" of the same trick, or record a new attempt that replaces a slot in place. The screen locks to landscape and hides the Android navigation bar while active (swipe from the edge it's docked to reveal it).
+**Playback** is the core screen. Load a clip into the left and right slots, trim each independently by dragging its in/out handles or scrubbing the track (or snap a handle to the current playhead with the arrow buttons beside it), cycle playback speed through 0.25×/0.5×/0.75×/1×, and pinch-zoom (1–3×) and drag-pan each clip to frame the trick — mirror either clip horizontally from the header if it was recorded facing the wrong way. Lock the timeline to play, scrub, step, and pan both clips together, looping at the shorter of the two windows. Switch between side-by-side and overlay display (overlay is only reachable while locked, since there's no left/right split left to touch-target a single clip) — overlay adds an opacity control that cycles through fixed steps. One swap button does double duty: in side-by-side it swaps which clip is on the left vs. right, in overlay it swaps which clip renders on top. Replace either slot's clip from the header, or record a new attempt that replaces it in place. The screen locks to landscape and hides the Android navigation bar while active (swipe from the edge it's docked to reveal it).
 
 **Library** lists every imported or recorded clip, searchable and filterable by tag, with a layout that adapts between a persistent sidebar (wide/landscape) and a stacked filter bar (narrow/portrait). Tap a clip to load it into the left or right slot.
 
@@ -29,7 +29,7 @@ Scan the QR code with [Expo Go](https://expo.dev/go) on an Android device — An
 
 ## Tech
 
-Expo SDK 57 (React 19 / React Native 0.86), TypeScript, file-based routing via `expo-router`. Video playback via `expo-video`, in-app recording via `expo-camera`, device picking via `expo-image-picker`, gestures via `react-native-gesture-handler`. The clip library is a flat JSON list in `AsyncStorage` (`app/src/data/clipRepository.ts`) — no backend, everything lives on-device.
+Expo SDK 57 (React 19 / React Native 0.86), TypeScript, file-based routing via `expo-router`. Video playback via `expo-video`, in-app recording via `expo-camera`, device picking via `expo-image-picker`, gestures via `react-native-gesture-handler` driving `react-native-reanimated` (pan/zoom/trim run as UI-thread worklets so touch feels immediate instead of round-tripping through React state on every frame). The clip library is a flat JSON list in `AsyncStorage` (`app/src/data/clipRepository.ts`) — no backend, everything lives on-device.
 
 ```
 app/src/
@@ -43,4 +43,4 @@ app/src/
 
 ## Status
 
-The app icon now uses real artwork (iOS light/tinted variants, Android adaptive icon layers, web favicon); the splash screen is still Expo's stock template asset. Everything else is implemented and has been exercised on an Android device; if something feels off in a specific interaction, it's worth a closer look rather than assumed-working.
+The app icon now uses real artwork (iOS light/tinted variants, Android adaptive icon layers, web favicon); the splash screen is still Expo's stock template asset. A "jump between prior tries of this trick" panel (`TriesPanel`) is fully built but currently switched off behind a flag in `HeaderBar.tsx` — pending a decision on how to surface it. Everything else is implemented and has been exercised on an Android device; if something feels off in a specific interaction, it's worth a closer look rather than assumed-working.
