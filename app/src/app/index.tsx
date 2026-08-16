@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useClipLibrary } from "@/data/ClipLibraryContext";
@@ -34,6 +34,28 @@ export default function PlaybackScreen() {
   const [chrome, setChrome] = useState(true);
   const [triesOpen, setTriesOpen] = useState(false);
 
+  const chromeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideChrome = useCallback(() => {
+    setChrome(false);
+    if (chromeHideTimer.current) clearTimeout(chromeHideTimer.current);
+  }, []);
+  // Shows the chrome (if hidden) and (re)arms the auto-hide countdown. Call
+  // this from any interaction that should keep the controls up.
+  const bumpChrome = useCallback(() => {
+    setChrome(true);
+    if (chromeHideTimer.current) clearTimeout(chromeHideTimer.current);
+    chromeHideTimer.current = setTimeout(() => setChrome(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    // chrome already starts visible, so this only needs to arm the
+    // countdown, not re-set state bumpChrome() also does.
+    chromeHideTimer.current = setTimeout(() => setChrome(false), 3000);
+    return () => {
+      if (chromeHideTimer.current) clearTimeout(chromeHideTimer.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (loading || libraryClips.length === 0) return;
     if (!session.clips.L.uri) session.loadClip("L", libraryClips[0]);
@@ -55,7 +77,6 @@ export default function PlaybackScreen() {
     setScrubbing,
     step,
     setSpeed,
-    setZoom,
     handleLock,
     windowLen,
   } = usePlaybackEngine(session);
@@ -72,6 +93,7 @@ export default function PlaybackScreen() {
     : [];
 
   const handlePan = (dx: number, dy: number) => {
+    bumpChrome();
     // Functional patch, not a snapshot of session.clips[s]: onChange fires
     // on every native touch-move, faster than this component can re-render
     // a fresh closure, so several calls can land before `c` here would
@@ -91,6 +113,7 @@ export default function PlaybackScreen() {
   // event's zoom, which would compound the scale factor every frame.
   const pinchBase = useRef<Record<Slot, number>>({ L: 1, R: 1 });
   const handlePinchBegin = () => {
+    bumpChrome();
     session.activeSlots.forEach((s) => {
       pinchBase.current[s] = session.clips[s].zoom;
     });
@@ -166,7 +189,8 @@ export default function PlaybackScreen() {
         sel={session.sel}
         locked={session.locked}
         onTapStage={() => {
-          setChrome((c) => !c);
+          if (chrome) hideChrome();
+          else bumpChrome();
           setTriesOpen(false);
         }}
         onPan={handlePan}
@@ -175,7 +199,11 @@ export default function PlaybackScreen() {
       />
 
       {chrome && (
-        <View style={{ position: "absolute", left: 0, right: 0, top: 0, paddingTop: insets.top }}>
+        <Pressable
+          style={{ position: "absolute", left: 0, right: 0, top: 0, paddingTop: insets.top }}
+          onPressIn={bumpChrome}
+          onPress={hideChrome}
+        >
           <HeaderBar
             nameL={session.clips.L.title}
             nameR={session.clips.R.title}
@@ -204,16 +232,18 @@ export default function PlaybackScreen() {
               onClose={() => setTriesOpen(false)}
             />
           )}
-        </View>
+        </Pressable>
       )}
 
       {chrome && (
-        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingBottom: insets.bottom }}>
+        <View
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingBottom: insets.bottom }}
+          onTouchStart={bumpChrome}
+        >
           <TransportBar
             tracks={tracks}
             playing={playing}
             speed={activeClip.speed}
-            zoom={activeClip.zoom}
             overlayMode={session.display === "overlay"}
             opacity={session.opacity}
             opacityText={`${Math.round(session.opacity * 100)}%`}
@@ -223,7 +253,6 @@ export default function PlaybackScreen() {
             onPlay={togglePlay}
             onStep={step}
             onSpeedChange={setSpeed}
-            onZoomChange={setZoom}
             onOpacityChange={session.setOpacity}
             onSwap={session.swapTop}
             onReplace={() => router.push({ pathname: "/record", params: { slot: activeSlot } })}

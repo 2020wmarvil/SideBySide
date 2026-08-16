@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { TrimTrack } from "./TrimTrack";
 import { color, radius, space, withAlpha } from "@/theme";
 
@@ -26,7 +26,6 @@ type TransportBarProps = {
   tracks: TrackRow[];
   playing: boolean;
   speed: number;
-  zoom: number;
   overlayMode: boolean;
   opacity: number;
   opacityText: string;
@@ -36,7 +35,6 @@ type TransportBarProps = {
   onPlay: () => void;
   onStep: (n: number) => void;
   onSpeedChange: (n: number) => void;
-  onZoomChange: (n: number) => void;
   onOpacityChange: (n: number) => void;
   onSwap: () => void;
   onReplace: () => void;
@@ -47,7 +45,6 @@ export function TransportBar({
   tracks,
   playing,
   speed,
-  zoom,
   overlayMode,
   opacity,
   opacityText,
@@ -57,7 +54,6 @@ export function TransportBar({
   onPlay,
   onStep,
   onSpeedChange,
-  onZoomChange,
   onOpacityChange,
   onSwap,
   onReplace,
@@ -89,43 +85,24 @@ export function TransportBar({
         </Pressable>
 
         <View style={styles.stepGroup}>
-          {[-5, -1, 1, 5].map((n) => (
+          {[-1, 1].map((n) => (
             <Pressable key={n} style={styles.stepButton} onPress={() => onStep(n)} disabled={!controlsEnabled}>
               <Text style={styles.stepText}>{n > 0 ? `+${n}` : n}</Text>
             </Pressable>
           ))}
         </View>
 
-        <View style={styles.sliderGroup}>
-          <Ionicons name="speedometer-outline" size={14} color={color.neutral400} />
-          <View style={styles.stepGroup}>
-            {SPEED_OPTIONS.map((n) => (
-              <Pressable
-                key={n}
-                style={[styles.stepButton, speed === n && styles.stepButtonActive]}
-                onPress={() => onSpeedChange(n)}
-                disabled={!controlsEnabled}
-              >
-                <Text style={[styles.stepText, speed === n && styles.stepTextActive]}>{n}×</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sliderGroup}>
-          <MaterialCommunityIcons name="magnify-plus-outline" size={14} color={color.neutral400} />
-          <Slider
-            style={styles.sliderSmall}
-            minimumValue={1}
-            maximumValue={3}
-            step={0.05}
-            value={zoom}
-            onValueChange={onZoomChange}
-            disabled={!controlsEnabled}
-            minimumTrackTintColor={color.accent}
-            maximumTrackTintColor={withAlpha(color.text, 0.2)}
-          />
-        </View>
+        <Pressable
+          style={styles.smallButton}
+          onPress={() => {
+            const idx = SPEED_OPTIONS.indexOf(speed as (typeof SPEED_OPTIONS)[number]);
+            onSpeedChange(SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length]);
+          }}
+          disabled={!controlsEnabled}
+        >
+          <Ionicons name="speedometer-outline" size={14} color={color.text} />
+          <Text style={styles.smallButtonText}>{speed}×</Text>
+        </Pressable>
 
         {overlayMode && (
           <View style={styles.sliderGroup}>
@@ -201,10 +178,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   stepText: { fontSize: 11, color: color.text },
-  stepButtonActive: { backgroundColor: color.accent, borderColor: color.accent },
-  stepTextActive: { color: color.stageBg },
   sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
-  slider: { width: 78, height: 24 },
   sliderSmall: { width: 64, height: 24 },
   sliderValue: {
     width: 32,

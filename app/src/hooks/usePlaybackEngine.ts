@@ -18,7 +18,7 @@ const SLOTS: Slot[] = ["L", "R"];
 /**
  * Owns the two video players and drives them against the session's
  * per-slot trim windows: loops playback within [in, out) (or the shorter
- * of the two windows once locked), and exposes play/step/speed/zoom/lock
+ * of the two windows once locked), and exposes play/step/speed/lock
  * actions. Ported from the prototype's Component.loop()/play()/onAction
  * handlers.
  */
@@ -169,13 +169,6 @@ export function usePlaybackEngine(session: Session) {
     [session, playerFor]
   );
 
-  const setZoom = useCallback(
-    (n: number) => {
-      session.activeSlots.forEach((s) => session.patchSlot(s, { zoom: n }));
-    },
-    [session]
-  );
-
   const handleLock = useCallback(() => {
     applyPlayState(false);
     const next = !session.locked;
@@ -202,7 +195,6 @@ export function usePlaybackEngine(session: Session) {
     setScrubbing,
     step,
     setSpeed,
-    setZoom,
     handleLock,
     windowLen,
   };
