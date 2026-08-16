@@ -10,6 +10,7 @@ import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { Stage } from "@/components/playback/Stage";
 import { HeaderBar } from "@/components/playback/HeaderBar";
 import { TransportBar, type TrackRow } from "@/components/playback/TransportBar";
+import { MiniControls } from "@/components/playback/MiniControls";
 import { TriesPanel } from "@/components/playback/TriesPanel";
 import { Toast } from "@/components/shared/Toast";
 import type { Clip, Slot } from "@/data/types";
@@ -141,16 +142,21 @@ export default function PlaybackScreen() {
       playheadFrac: pos[slot],
       timeText: formatTime(duration, c.in, c.out, pos[slot]),
       onSetIn: (frac) => {
+        bumpChrome();
         const next = Math.min(frac, c.out - 0.05);
         session.patchSlot(slot, { in: next });
         seek(slot, next);
       },
       onSetOut: (frac) => {
+        bumpChrome();
         const next = Math.max(frac, c.in + 0.05);
         session.patchSlot(slot, { out: next });
         seek(slot, next);
       },
-      onScrub: (frac) => seek(slot, frac),
+      onScrub: (frac) => {
+        bumpChrome();
+        seek(slot, frac);
+      },
       onScrubStart: () => {
         pause();
         setScrubbing(true);
@@ -172,7 +178,10 @@ export default function PlaybackScreen() {
         labelColor: color.accent,
         timeText: `${cur.toFixed(2)} / ${lockedLen.toFixed(2)}s`,
         // locked scrubbing moves both clips together, not just L.
-        onScrub: (frac) => session.activeSlots.forEach((s) => seek(s, frac)),
+        onScrub: (frac) => {
+          bumpChrome();
+          session.activeSlots.forEach((s) => seek(s, frac));
+        },
       },
     ];
   } else {
@@ -263,6 +272,10 @@ export default function PlaybackScreen() {
             onLock={handleLock}
           />
         </View>
+      )}
+
+      {!chrome && (
+        <MiniControls playing={playing} bottom={insets.bottom + 12} onPlay={togglePlay} onStep={step} />
       )}
 
       <Toast message={toast} bottom={chrome ? 132 : 24} />

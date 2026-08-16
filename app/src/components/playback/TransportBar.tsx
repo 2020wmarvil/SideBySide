@@ -81,7 +81,7 @@ export function TransportBar({
 
       <View style={styles.controlsRow}>
         <Pressable style={styles.playButton} onPress={onPlay} disabled={!controlsEnabled}>
-          <Ionicons name={playing ? "pause" : "play"} size={16} color={color.accent} />
+          <Ionicons name={playing ? "pause" : "play"} size={22} color={color.accent} />
         </Pressable>
 
         <View style={styles.stepGroup}>
@@ -132,8 +132,7 @@ export function TransportBar({
             <Text style={styles.smallButtonText}>{replaceLabel}</Text>
           </Pressable>
           <Pressable style={[styles.lockButton, locked && styles.lockButtonActive]} onPress={onLock}>
-            <Ionicons name={locked ? "lock-closed" : "lock-open-outline"} size={14} color={locked ? color.stageBg : color.text} />
-            <Text style={[styles.lockText, locked && { color: color.stageBg }]}>{locked ? "Locked" : "Lock timeline"}</Text>
+            <Ionicons name={locked ? "lock-closed" : "lock-open-outline"} size={16} color={locked ? color.stageBg : color.text} />
           </Pressable>
         </View>
       </View>
@@ -161,8 +160,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   playButton: {
-    width: 34,
-    height: 34,
+    width: 46,
+    height: 46,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: color.accent,
@@ -174,10 +173,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: withAlpha(color.text, 0.2),
     borderRadius: radius.md,
-    paddingHorizontal: 7,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-  stepText: { fontSize: 11, color: color.text },
+  stepText: { fontSize: 14, color: color.text },
   sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
   sliderSmall: { width: 64, height: 24 },
   sliderValue: {
@@ -199,15 +198,13 @@ const styles = StyleSheet.create({
   smallButtonText: { fontSize: 11, color: color.text },
   trailingGroup: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 },
   lockButton: {
-    flexDirection: "row",
+    width: 34,
+    height: 34,
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: withAlpha(color.text, 0.2),
     borderRadius: radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
   lockButtonActive: { backgroundColor: color.accent, borderColor: color.accent },
-  lockText: { fontSize: 12, color: color.text },
 });

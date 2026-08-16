@@ -73,6 +73,11 @@ export function usePlaybackEngine(session: Session) {
       setPos((prev) => {
         let changed = false;
         const next = { ...prev };
+
+        // first pass: read where each player actually is, and whether any
+        // of them has drifted past its loop boundary.
+        const info: Partial<Record<Slot, { start: number; len: number; t: number; d: number }>> = {};
+        let needsLoop = false;
         SLOTS.forEach((s) => {
           const c = session.clips[s];
           const d = durationFor(s);
@@ -83,17 +88,42 @@ export function usePlaybackEngine(session: Session) {
             }
             return;
           }
-          const player = playerFor(s);
           const start = c.in * d;
           const len = Number.isFinite(lim) ? lim : (c.out - c.in) * d;
-          let t = player.currentTime;
+          const t = playerFor(s).currentTime;
+          info[s] = { start, len, t, d };
           // upper bound uses a small tolerance (not a strict `>`) so a clip
           // that lands exactly on its window end (float precision, or a
           // window that runs to the very end of the source) still loops
           // back instead of sitting stuck at the boundary forever.
-          if (t < start - 0.08 || t > start + len - 0.05) {
+          if (t < start - 0.08 || t > start + len - 0.05) needsLoop = true;
+        });
+
+        // when locked, a loop on either side restarts BOTH players together,
+        // not just the one that crossed its boundary. Each corrective seek
+        // below has its own (variable) latency, so looping each side only
+        // when it individually drifts lets L and R slowly fall out of sync
+        // over many loops — resetting both in lockstep is the fix.
+        const resetAll = session.locked && needsLoop;
+
+        SLOTS.forEach((s) => {
+          const entry = info[s];
+          if (!entry) return;
+          const { start, len, d } = entry;
+          let t = entry.t;
+          if (resetAll || t < start - 0.08 || t > start + len - 0.05) {
+            const player = playerFor(s);
             t = start;
+            // loop-restart seeks don't need frame accuracy, just to land
+            // near the window start — an exact seek forces the decoder to
+            // walk forward from the nearest keyframe, which is what causes
+            // the visible stutter (and its inconsistent duration is what
+            // lets L/R drift). A loose tolerance lets the player snap to a
+            // nearby keyframe instead, so restore it to exact right after
+            // for the next user-driven seek/step.
+            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0.3 };
             player.currentTime = t;
+            player.seekTolerance = { toleranceBefore: 0, toleranceAfter: 0 };
           }
           const frac = t / d;
           if (next[s] !== frac) {
