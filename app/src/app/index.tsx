@@ -178,20 +178,36 @@ export default function PlaybackScreen() {
 
   let tracks: TrackRow[];
   if (session.locked) {
-    // the merged track loops at the shorter of the two windows, not clip
-    // L's own (out - in) — show that length, not L's raw window.
+    // The merged clip's own length is the shorter of the two windows, not
+    // clip L's (out - in) — L and R aren't necessarily the same duration,
+    // so their trim fractions don't line up 1:1. Rather than show L's own
+    // (unrelated) trim window, treat the locked timeline as its own clip
+    // spanning the full bar: inFrac/outFrac cover [0, 1] and the playhead
+    // is `elapsed / lockedLen`, not a raw fraction of L's duration.
     const lockedLen = Math.min(windowLen("L"), windowLen("R"));
     const cur = Math.max(0, (pos.L - session.clips.L.in) * durationL);
+    const mergedFrac = lockedLen > 0 ? Math.max(0, Math.min(1, cur / lockedLen)) : 0;
     tracks = [
       {
         ...trackFor("L", "Locked"),
         editable: false,
         labelColor: color.accent,
+        inFrac: 0,
+        outFrac: 1,
+        playheadFrac: mergedFrac,
         timeText: `${cur.toFixed(2)} / ${lockedLen.toFixed(2)}s`,
-        // locked scrubbing moves both clips together, not just L.
+        // locked scrubbing moves both clips together, not just L — and
+        // `frac` here is a position along the merged bar (0..1 of
+        // lockedLen), so it has to be remapped into each clip's own
+        // in-relative, own-duration fraction before seeking it.
         onScrub: (frac) => {
           bumpChrome();
-          session.activeSlots.forEach((s) => seek(s, frac));
+          const elapsed = frac * lockedLen;
+          session.activeSlots.forEach((s) => {
+            const d = s === "L" ? durationL : durationR;
+            if (!d) return;
+            seek(s, session.clips[s].in + elapsed / d);
+          });
         },
       },
     ];

@@ -193,9 +193,13 @@ export function usePlaybackEngine(session: Session) {
     [applyPlayState, session.activeSlots, playerFor]
   );
 
+  // Speed always applies to both clips, not just session.activeSlots —
+  // playing L and R back at different rates would drift them out of the
+  // sync a coach is trying to compare, so there's no case where a
+  // per-slot speed makes sense.
   const setSpeed = useCallback(
     (n: number) => {
-      session.activeSlots.forEach((s) => {
+      SLOTS.forEach((s) => {
         session.patchSlot(s, { speed: n });
         playerFor(s).playbackRate = n;
       });
