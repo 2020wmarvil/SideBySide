@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Slider from "@react-native-community/slider";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { TrimTrack } from "./TrimTrack";
 import type { DisplayMode } from "@/state/PlaybackSessionContext";
@@ -22,6 +21,7 @@ export type TrackRow = {
 };
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1] as const;
+const OPACITY_OPTIONS = [0, 0.2, 0.4, 0.6, 0.8, 1] as const;
 
 type TransportBarProps = {
   tracks: TrackRow[];
@@ -38,7 +38,6 @@ type TransportBarProps = {
   onSpeedChange: (n: number) => void;
   onSetDisplay: (mode: DisplayMode) => void;
   onOpacityChange: (n: number) => void;
-  onSwap: () => void;
   onSwapSlots: () => void;
   onLock: () => void;
 };
@@ -58,7 +57,6 @@ export function TransportBar({
   onSpeedChange,
   onSetDisplay,
   onOpacityChange,
-  onSwap,
   onSwapSlots,
   onLock,
 }: TransportBarProps) {
@@ -132,25 +130,17 @@ export function TransportBar({
         )}
 
         {overlayMode && (
-          <View style={styles.sliderGroup}>
-            <Ionicons name="contrast-outline" size={14} color={color.neutral400} />
-            <Slider
-              style={styles.sliderSmall}
-              minimumValue={0}
-              maximumValue={1}
-              step={0.02}
-              value={opacity}
-              onValueChange={onOpacityChange}
-              disabled={!controlsEnabled}
-              minimumTrackTintColor={color.accent}
-              maximumTrackTintColor={withAlpha(color.text, 0.2)}
-            />
-            <Text style={styles.sliderValue}>{opacityText}</Text>
-            <Pressable style={styles.smallButton} onPress={onSwap}>
-              <Ionicons name="swap-horizontal-outline" size={14} color={color.text} />
-              <Text style={styles.smallButtonText}>Swap</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.smallButton}
+            onPress={() => {
+              const idx = OPACITY_OPTIONS.indexOf(opacity as (typeof OPACITY_OPTIONS)[number]);
+              onOpacityChange(OPACITY_OPTIONS[(idx + 1) % OPACITY_OPTIONS.length]);
+            }}
+            disabled={!controlsEnabled}
+          >
+            <Ionicons name="contrast-outline" size={14} color={color.text} />
+            <Text style={styles.smallButtonText}>{opacityText}</Text>
+          </Pressable>
         )}
 
         <View style={styles.trailingGroup}>
@@ -223,14 +213,6 @@ const styles = StyleSheet.create({
   segmentButtonBorder: {
     borderLeftWidth: 1,
     borderLeftColor: withAlpha(color.text, 0.2),
-  },
-  sliderGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sliderSmall: { width: 64, height: 24 },
-  sliderValue: {
-    width: 32,
-    fontSize: 11,
-    fontVariant: ["tabular-nums"],
-    color: color.neutral300,
   },
   smallButton: {
     height: 46,

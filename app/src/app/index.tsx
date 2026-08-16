@@ -80,7 +80,6 @@ export default function PlaybackScreen() {
     step,
     setSpeed,
     handleLock,
-    resyncSlots,
     windowLen,
   } = usePlaybackEngine(session);
 
@@ -135,13 +134,6 @@ export default function PlaybackScreen() {
     bumpChrome();
     pause();
     session.setSel(slot);
-  };
-
-  // resync before flipping which slot is on top, using the pre-swap `top`
-  // as the reference, so the swap can't reveal drift as a visible jump.
-  const handleSwapTop = () => {
-    resyncSlots();
-    session.swapTop();
   };
 
   const handleReplace = (slot: Slot) => {
@@ -309,7 +301,6 @@ export default function PlaybackScreen() {
             onSpeedChange={setSpeed}
             onSetDisplay={session.setDisplay}
             onOpacityChange={session.setOpacity}
-            onSwap={handleSwapTop}
             onSwapSlots={session.swapSlots}
             onLock={handleLock}
           />

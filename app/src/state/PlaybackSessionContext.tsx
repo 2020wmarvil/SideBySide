@@ -43,7 +43,6 @@ type PlaybackSessionValue = {
   setSel: (slot: Slot) => void;
   setDisplay: (mode: DisplayMode) => void;
   setOpacity: (n: number) => void;
-  swapTop: () => void;
   swapSlots: () => void;
   toggleLock: () => void;
   patchSlot: (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => void;
@@ -63,8 +62,10 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [sel, setSel] = useState<Slot>("L");
   const [display, setDisplayState] = useState<DisplayMode>("side");
-  const [opacity, setOpacity] = useState(0.5);
-  const [top, setTop] = useState<Slot>("R");
+  const [opacity, setOpacity] = useState(0.6);
+  // Fixed: overlay always applies opacity to R, since swapping slot content
+  // (swapSlots) already changes which clip is the faded one on top.
+  const top: Slot = "R";
 
   const patchSlot = useCallback(
     (slot: Slot, patch: Partial<SlotState> | ((prev: SlotState) => Partial<SlotState>)) => {
@@ -100,10 +101,6 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
     },
     []
   );
-
-  const swapTop = useCallback(() => {
-    setTop((t) => (t === "L" ? "R" : "L"));
-  }, []);
 
   // swaps the two slots' entire contents (clip, trim window, speed, zoom,
   // pan) — a full trade of what's on the left vs. the right. `sel` and
@@ -147,7 +144,6 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       setSel,
       setDisplay,
       setOpacity,
-      swapTop,
       swapSlots,
       toggleLock,
       patchSlot,
@@ -162,7 +158,6 @@ export function PlaybackSessionProvider({ children }: { children: ReactNode }) {
       opacity,
       top,
       setDisplay,
-      swapTop,
       swapSlots,
       toggleLock,
       patchSlot,
